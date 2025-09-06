@@ -28,8 +28,10 @@ class _MyAppState extends State<MyApp> {
       valueListenable: themeNotifier,
       builder: (_, mode, __) {
         return MaterialApp.router(
+          debugShowCheckedModeBanner: false,
           title: 'JanSahayak',
           theme: ThemeData(
+            fontFamily: 'SFProRounded Regular', // Default font for light mode
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
             useMaterial3: true,
             dropdownMenuTheme: DropdownMenuThemeData( // Apply to light theme
@@ -44,6 +46,7 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
           darkTheme: ThemeData(
+            fontFamily: 'SFProRounded Regular', // Default font for dark mode
             scaffoldBackgroundColor: Colors.black, // Black background for Scaffold
             canvasColor: Colors.black, // Black background for other surfaces
             colorScheme: ColorScheme.fromSeed(

@@ -10,7 +10,10 @@ class AdminPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Page'),
+        title: const Text(
+          'Admin Page',
+          style: TextStyle(fontFamily: 'SFProRounded Medium'),
+        ),
         actions: [
           IconButton(
             icon: Icon(Theme.of(context).brightness == Brightness.dark
@@ -35,7 +38,10 @@ class AdminPage extends StatelessWidget {
         ],
       ),
       body: const Center(
-        child: Text('Welcome, Admin!'),
+        child: Text(
+          'Welcome, Admin!',
+          style: TextStyle(fontFamily: 'SFProRounded Regular'),
+        ),
       ),
     );
   }

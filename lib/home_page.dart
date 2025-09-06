@@ -10,7 +10,10 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home Page'),
+        title: const Text(
+          'Home Page',
+          style: TextStyle(fontFamily: 'SFProRounded Medium'),
+        ),
         actions: [
           IconButton(
             icon: Icon(Theme.of(context).brightness == Brightness.dark
@@ -35,7 +38,10 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: const Center(
-        child: Text('Welcome, User!'),
+        child: Text(
+          'Welcome, User!',
+          style: TextStyle(fontFamily: 'SFProRounded Regular'),
+        ),
       ),
     );
   }
