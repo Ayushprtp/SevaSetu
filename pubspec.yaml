@@ -37,6 +37,7 @@ dependencies:
   supabase_flutter: ^2.5.0
   go_router: ^14.0.0
   awesome_snackbar_content: ^0.1.8
+  hugeicons: ^0.0.11
 
 dev_dependencies:
   flutter_test:
