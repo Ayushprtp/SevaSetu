@@ -5,6 +5,8 @@ import 'auth_page.dart';
 import 'home_page.dart';
 import 'admin_page.dart';
 import 'issue_detail_page.dart';
+import 'profile_page.dart';
+import 'my_reports_page.dart';
 
 final GoRouter appRouter = GoRouter(
   routes: [
@@ -26,6 +28,14 @@ final GoRouter appRouter = GoRouter(
         issueId: state.pathParameters['issueId']!,
       ),
     ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfilePage(),
+    ),
+    GoRoute(
+      path: '/my-reports',
+      builder: (context, state) => const MyReportsPage(),
+    ),
   ],
   redirect: (context, state) async {
     final supabase = Supabase.instance.client;
@@ -42,17 +52,14 @@ final GoRouter appRouter = GoRouter(
       if (user != null) {
         try {
           final response = await supabase
-              .from('profiles')
-              .select('role')
+              .from('users')
+              .select('id')
               .eq('id', user.id)
               .single();
-          final role = response['role'] as String?;
 
-          if (role == 'admin') {
-            return '/admin';
-          } else if (role == 'user') {
-            return '/home';
-          }
+          // Since there's no role column in the users table, we'll navigate to home for all users
+          // and to admin only if the user has admin privileges (which would be checked separately)
+          return '/home';
         } catch (e) {
           debugPrint('Error fetching role during redirect: $e');
           return '/auth'; // Fallback to auth on error

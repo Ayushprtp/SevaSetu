@@ -22,7 +22,6 @@ class _HomePageState extends State<HomePage> {
   final List<Widget> _pages = [
     const FeedPage(),
     const ReportProblemPage(),
-    const SettingsPage(),
   ];
 
   @override
@@ -63,7 +62,7 @@ class _HomePageState extends State<HomePage> {
         items: const <Widget>[
           Icon(Icons.feed, size: 35),
           Icon(Icons.add, size: 35),
-          Icon(Icons.settings, size: 35),
+          Icon(Icons.person, size: 35),
         ],
         color: Theme.of(context).colorScheme.primary,
         buttonBackgroundColor: Theme.of(context).colorScheme.primary,
@@ -71,9 +70,13 @@ class _HomePageState extends State<HomePage> {
         animationCurve: Curves.easeInOut,
         animationDuration: const Duration(milliseconds: 300),
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          if (index == 2) { // Assuming the person icon is at index 2
+            context.push('/profile'); // Navigate to the new profile page
+          } else {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
         },
       ),
     );
@@ -91,11 +94,27 @@ class _FeedPageState extends State<FeedPage> {
   Position? _currentPosition;
   bool _isLoading = true;
   List<dynamic> _issues = [];
+  List<String> _selectedCategories = ['All']; // List of selected categories
+  bool _sortNewestFirst = true; // true for newest first, false for oldest first
+  DateTime? _startDate;
+  DateTime? _endDate;
+  String _dateFilterType = 'All Time'; // 'All Time', 'Last Week', 'Last Month', 'Custom Range'
   
   @override
   void initState() {
     super.initState();
     _getCurrentLocationAndFetchIssues();
+  }
+  
+  String _getUserFirstName() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      // Extract first name from email if no user data is available
+      final email = user.email ?? '';
+      final name = email.split('@').first;
+      return name.isNotEmpty ? name : 'User';
+    }
+    return 'User';
   }
   
   Future<void> _getCurrentLocationAndFetchIssues() async {
@@ -182,8 +201,35 @@ class _FeedPageState extends State<FeedPage> {
         'radius_km': 15, // 15 km radius
       });
       
+      List<dynamic> filteredIssues = response as List<dynamic>;
+      
+      // Apply category filter
+      if (!_selectedCategories.contains('All') && _selectedCategories.isNotEmpty) {
+        filteredIssues = filteredIssues.where((issue) => _selectedCategories.contains(issue['category'])).toList();
+      }
+      
+      // Apply date filter
+      if (_startDate != null && _endDate != null) {
+        filteredIssues = filteredIssues.where((issue) {
+          final issueDate = DateTime.parse(issue['created_at'] ?? '1970-01-01T00:00:00Z');
+          return issueDate.isAfter(_startDate!) && issueDate.isBefore(_endDate!);
+        }).toList();
+      }
+      
+      // Apply date sort
+      // Assuming there's a 'created_at' field in the issue data
+      filteredIssues.sort((a, b) {
+        final dateA = DateTime.parse(a['created_at'] ?? '1970-01-01T00:00:00Z');
+        final dateB = DateTime.parse(b['created_at'] ?? '1970-01-01T00:00:00Z');
+        if (_sortNewestFirst) {
+          return dateB.compareTo(dateA); // Newest first
+        } else {
+          return dateA.compareTo(dateB); // Oldest first
+        }
+      });
+      
       setState(() {
-        _issues = response as List<dynamic>;
+        _issues = filteredIssues;
         _isLoading = false;
       });
     } catch (e) {
@@ -284,7 +330,7 @@ class _FeedPageState extends State<FeedPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Good Morning, Ayush!',
+                          'Good Morning, ${_getUserFirstName()}!',
                           style: TextStyle(
                             fontFamily: 'SFProRounded Medium',
                             fontSize: 18,
@@ -334,6 +380,301 @@ class _FeedPageState extends State<FeedPage> {
                       color: Theme.of(context).hintColor,
                     ),
                   ),
+              ],
+            ),
+            SizedBox(height: 16),
+            // Filter and sort controls
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Category filter
+                Text('Filter by Category:'),
+                Wrap(
+                  children: [
+                    FilterChip(
+                      label: Text('All'),
+                      selected: _selectedCategories.contains('All'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories = ['All'];
+                          } else {
+                            _selectedCategories.remove('All');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('POTHOLE'),
+                      selected: _selectedCategories.contains('POTHOLE'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('POTHOLE');
+                          } else {
+                            _selectedCategories.remove('POTHOLE');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Power Cut'),
+                      selected: _selectedCategories.contains('Power Cut'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Power Cut');
+                          } else {
+                            _selectedCategories.remove('Power Cut');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Water Leak'),
+                      selected: _selectedCategories.contains('Water Leak'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Water Leak');
+                          } else {
+                            _selectedCategories.remove('Water Leak');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Sewage Overflow'),
+                      selected: _selectedCategories.contains('Sewage Overflow'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Sewage Overflow');
+                          } else {
+                            _selectedCategories.remove('Sewage Overflow');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Garbage Issue'),
+                      selected: _selectedCategories.contains('Garbage Issue'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Garbage Issue');
+                          } else {
+                            _selectedCategories.remove('Garbage Issue');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Street Light'),
+                      selected: _selectedCategories.contains('Street Light'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Street Light');
+                          } else {
+                            _selectedCategories.remove('Street Light');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Drainage Problem'),
+                      selected: _selectedCategories.contains('Drainage Problem'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Drainage Problem');
+                          } else {
+                            _selectedCategories.remove('Drainage Problem');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Other'),
+                      selected: _selectedCategories.contains('Other'),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedCategories.remove('All');
+                            _selectedCategories.add('Other');
+                          } else {
+                            _selectedCategories.remove('Other');
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedCategories = ['All'];
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                      child: Text('Clear All'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedCategories = [
+                            'POTHOLE', 'Power Cut', 'Water Leak', 'Sewage Overflow',
+                            'Garbage Issue', 'Street Light', 'Drainage Problem', 'Other'
+                          ];
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                      child: Text('Select All'),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                // Sort order
+                Row(
+                  children: [
+                    Text('Sort:'),
+                    SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(_sortNewestFirst ? Icons.arrow_downward : Icons.arrow_upward),
+                      onPressed: () {
+                        setState(() {
+                          _sortNewestFirst = !_sortNewestFirst;
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+                    ),
+                    Text(_sortNewestFirst ? 'Newest' : 'Oldest'),
+                  ],
+                ),
+                SizedBox(height: 16),
+                // Date filter
+                Text('Filter by Date:'),
+                Wrap(
+                  children: [
+                    FilterChip(
+                      label: Text('All Time'),
+                      selected: _dateFilterType == 'All Time',
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _dateFilterType = selected ? 'All Time' : '';
+                          _startDate = null;
+                          _endDate = null;
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Last Week'),
+                      selected: _dateFilterType == 'Last Week',
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _dateFilterType = selected ? 'Last Week' : '';
+                          if (selected) {
+                            _endDate = DateTime.now();
+                            _startDate = DateTime.now().subtract(Duration(days: 7));
+                          } else {
+                            _startDate = null;
+                            _endDate = null;
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Last Month'),
+                      selected: _dateFilterType == 'Last Month',
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _dateFilterType = selected ? 'Last Month' : '';
+                          if (selected) {
+                            _endDate = DateTime.now();
+                            _startDate = DateTime.now().subtract(Duration(days: 30));
+                          } else {
+                            _startDate = null;
+                            _endDate = null;
+                          }
+                          if (_currentPosition != null) {
+                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                          }
+                        });
+                      },
+    ),
+                    SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('Custom Range'),
+                      selected: _dateFilterType == 'Custom Range',
+                      onSelected: (bool selected) {
+                        // TODO: Implement custom date range picker
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Custom date range not implemented yet')),
+                        );
+                      },
+    ),
+                  ],
+                ),
               ],
             ),
             SizedBox(height: 16),
@@ -474,17 +815,31 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
   
+  String _getPriorityLabel(int priorityScore) {
+    if (priorityScore < 50) {
+      return 'Low';
+    } else if (priorityScore < 100) {
+      return 'Medium';
+    } else if (priorityScore < 300) {
+      return 'High';
+    } else {
+      return 'Very High';
+    }
+  }
+  
   Widget _buildIssueCardFromData(dynamic issue) {
     final issueId = issue['id'] as String? ?? '';
+    final issueNumber = issueId.substring(0, 8); // First 8 digits of UUID as issue number
     final category = issue['category'] as String? ?? 'Unknown';
     final address = issue['address'] as String? ?? 'Unknown location';
     final upvotes = issue['upvotes'] as int? ?? 0;
     final priorityScore = issue['priority_score'] as int? ?? 0;
+    final priorityLabel = _getPriorityLabel(priorityScore);
     final distanceKm = issue['distance_km'] as double? ?? 0.0;
     
     return GestureDetector(
       onTap: () {
-        context.go('/issue/$issueId');
+        context.push('/issue/$issueId');
       },
       child: Card(
         child: Padding(
@@ -505,7 +860,7 @@ class _FeedPageState extends State<FeedPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '$category - $address',
+                          'Issue #$issueNumber - $category',
                           style: TextStyle(
                             fontFamily: 'SFProRounded Medium',
                             fontSize: 16,
@@ -513,7 +868,15 @@ class _FeedPageState extends State<FeedPage> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Priority: $priorityScore • ${distanceKm.toStringAsFixed(1)}km away',
+                          '$address',
+                          style: TextStyle(
+                            fontFamily: 'SFProRounded Regular',
+                            color: Colors.grey,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Priority: $priorityLabel • ${distanceKm.toStringAsFixed(1)}km away',
                           style: TextStyle(
                             fontFamily: 'SFProRounded Regular',
                             color: Colors.grey,
@@ -879,7 +1242,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
       // Upload all media files
       final uploadedMediaUrls = await _uploadAllMedia();
       
-      await supabase.rpc('create_civic_issue', params: {
+      final response = await supabase.rpc('create_civic_issue', params: {
         'user_id': user.id,
         'category': _selectedCategory,
         'description': _description,
@@ -889,6 +1252,9 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         'media_urls': uploadedMediaUrls,
         'voice_note_url': null, // Not implemented yet
       });
+      
+      // Extract the issue ID from the response
+      final issueId = response as String?;
       
       setState(() {
         _capturedMedia.clear();
@@ -902,7 +1268,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report submitted successfully')),
         );
-        _showSubmissionSuccess();
+        _showSubmissionSuccess(issueId);
       }
     } catch (e) {
       if (mounted) {
@@ -926,7 +1292,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     return uploadedUrls;
   }
   
-  void _showSubmissionSuccess() {
+  void _showSubmissionSuccess(String? issueId) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -979,6 +1345,10 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop(); // Close dialog
+                  // Navigate to IssueDetailPage if issueId is available
+                  if (issueId != null && context.mounted) {
+                    context.push('/issue/$issueId');
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(double.infinity, 50),
@@ -1363,8 +1733,29 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   }
 }
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  String _getUserFullName() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      // Extract name from email if no user data is available
+      final email = user.email ?? '';
+      final name = email.split('@').first;
+      return name.isNotEmpty ? name : 'User';
+    }
+    return 'User';
+  }
+
+  String _getUserEmail() {
+    final user = Supabase.instance.client.auth.currentUser;
+    return user?.email ?? 'user@example.com';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1396,11 +1787,11 @@ class SettingsPage extends StatelessWidget {
                     child: Icon(Icons.person),
                   ),
                   title: Text(
-                    'Ayush Kumar',
+                    _getUserFullName(),
                     style: TextStyle(fontFamily: 'SFProRounded Medium'),
                   ),
                   subtitle: Text(
-                    'ayush.kumar@example.com',
+                    _getUserEmail(),
                     style: TextStyle(fontFamily: 'SFProRounded Regular'),
                   ),
                   trailing: Icon(Icons.arrow_forward_ios),

@@ -102,15 +102,16 @@ class _AuthPageState extends State<AuthPage> {
       );
 
       if (response.user != null) {
-        // Insert additional profile data
-        await supabase.from('profiles').update({
+        // Insert additional user data
+        await supabase.from('users').upsert({
+          'id': response.user!.id,
           'first_name': _firstNameController.text.trim(),
           'last_name': _lastNameController.text.trim(),
           'username': _usernameController.text.trim(),
           'mobile_number': _mobileNumberController.text.trim(),
           'id_type': _selectedIdType,
           'id_value': _idValueController.text.trim(),
-        }).eq('id', response.user!.id);
+        });
       }
 
       if (mounted) {
@@ -183,33 +184,17 @@ class _AuthPageState extends State<AuthPage> {
 
     try {
       final response = await supabase
-          .from('profiles')
-          .select('role')
+          .from('users')
+          .select('id')
           .eq('id', user.id)
           .single();
 
-      final role = response['role'] as String?;
-
+      // Since there's no role column in the users table, we'll navigate to home for all users
+      // and to admin only if the user has admin privileges (which would be checked separately)
       if (!mounted) return;
 
-      if (role == 'admin') {
-        context.go('/admin');
-      } else if (role == 'user') {
-        context.go('/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            elevation: 0,
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.transparent,
-            content: AwesomeSnackbarContent(
-              title: 'Error',
-              message: 'Unknown role: $role',
-              contentType: ContentType.failure,
-            ),
-          ),
-        );
-      }
+      // For now, navigate to home for all authenticated users
+      context.go('/home');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -61,6 +61,12 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            context.pop(); // Use go_router's pop for back navigation
+          },
+        ),
         title: const Text(
           'Issue Details',
           style: TextStyle(fontFamily: 'SFProRounded Medium'),
@@ -281,15 +287,24 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
   }
 
   Widget _buildLocationSection(BuildContext context) {
-    final location = _issueDetails!['location'] as Map<String, dynamic>?;
+    final location = _issueDetails!['location'] as String?;
     final address = _issueDetails!['address'] as String? ?? 'N/A';
 
     if (location == null) {
       return const SizedBox.shrink();
     }
 
-    final latitude = location['coordinates'][1] as double;
-    final longitude = location['coordinates'][0] as double;
+    // Parse the location string to extract coordinates
+    // The format is: "POINT(longitude latitude)"
+    final RegExp pointRegExp = RegExp(r'POINT\(([^ ]+) ([^ ]+)\)');
+    final Match? match = pointRegExp.firstMatch(location);
+    
+    if (match == null) {
+      return const SizedBox.shrink();
+    }
+    
+    final double longitude = double.parse(match.group(1)!);
+    final double latitude = double.parse(match.group(2)!);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
