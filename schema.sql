@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS cluster_members (
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_civic_issues_location ON civic_issues USING GIST (location::geometry);
+CREATE INDEX IF NOT EXISTS idx_civic_issues_location ON civic_issues USING GIST (location);
 CREATE INDEX IF NOT EXISTS idx_civic_issues_category ON civic_issues (category);
 CREATE INDEX IF NOT EXISTS idx_civic_issues_priority ON civic_issues (priority_score DESC);
 CREATE INDEX IF NOT EXISTS idx_civic_issues_created ON civic_issues (created_at DESC);

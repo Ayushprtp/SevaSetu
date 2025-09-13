@@ -482,73 +482,78 @@ class _FeedPageState extends State<FeedPage> {
     final priorityScore = issue['priority_score'] as int? ?? 0;
     final distanceKm = issue['distance_km'] as double? ?? 0.0;
     
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  _getIssueIcon(category),
-                  size: 24,
-                  color: Theme.of(context).primaryColor,
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$category - $address',
-                        style: TextStyle(
-                          fontFamily: 'SFProRounded Medium',
-                          fontSize: 16,
+    return GestureDetector(
+      onTap: () {
+        context.go('/issue/$issueId');
+      },
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _getIssueIcon(category),
+                    size: 24,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$category - $address',
+                          style: TextStyle(
+                            fontFamily: 'SFProRounded Medium',
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Priority: $priorityScore • ${distanceKm.toStringAsFixed(1)}km away',
-                        style: TextStyle(
-                          fontFamily: 'SFProRounded Regular',
-                          color: Colors.grey,
+                        SizedBox(height: 4),
+                        Text(
+                          'Priority: $priorityScore • ${distanceKm.toStringAsFixed(1)}km away',
+                          style: TextStyle(
+                            fontFamily: 'SFProRounded Regular',
+                            color: Colors.grey,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Icon(Icons.arrow_forward_ios, size: 16),
-              ],
-            ),
-            SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '$upvotes upvotes',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Regular',
-                    fontSize: 14,
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _upvoteIssue(issueId),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    minimumSize: Size.zero,
-                  ),
-                  child: Text(
-                    'Upvote',
+                  Icon(Icons.arrow_forward_ios, size: 16),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '$upvotes upvotes',
                     style: TextStyle(
                       fontFamily: 'SFProRounded Regular',
                       fontSize: 14,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  ElevatedButton(
+                    onPressed: () => _upvoteIssue(issueId),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: Size.zero,
+                    ),
+                    child: Text(
+                      'Upvote',
+                      style: TextStyle(
+                        fontFamily: 'SFProRounded Regular',
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -640,14 +645,11 @@ class ReportProblemPage extends StatefulWidget {
 }
 
 class _ReportProblemPageState extends State<ReportProblemPage> {
-  int _currentStep = 0;
-  final PageController _pageController = PageController();
-
   // Form data
   List<String> _capturedMedia = [];
   String _selectedCategory = '';
   String _description = '';
-  String _location = '';
+  String _location = ''; // This will be updated with the actual address
   bool _isVerifiedUser = true; // This should come from user profile in real implementation
   
   // Location data
@@ -669,34 +671,15 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     'Other'
   ];
 
-  void _nextStep() {
-    if (_currentStep < 4) {
-      setState(() {
-        _currentStep++;
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      });
-    }
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation(); // Automatically capture location on page load
   }
 
-  void _previousStep() {
-    if (_currentStep > 0) {
-      setState(() {
-        _currentStep--;
-        _pageController.previousPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      });
-    }
-  }
-  
   Future<void> _checkLocationPermission() async {
     final status = await Permission.location.request();
     if (status != PermissionStatus.granted) {
-      // Handle permission denied
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Location permission is required to get your current location')),
@@ -711,7 +694,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     });
     
     try {
-      // Check if location services are enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
@@ -725,7 +707,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         return;
       }
       
-      // Check location permissions
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         await _checkLocationPermission();
@@ -744,7 +725,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         return;
       }
       
-      // Get current position
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -752,6 +732,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
       setState(() {
         _currentPosition = position;
         _isLoadingLocation = false;
+        _location = 'Lat: ${position.latitude.toStringAsFixed(6)}, Lng: ${position.longitude.toStringAsFixed(6)}'; // Update location string
       });
       
       if (mounted) {
@@ -774,7 +755,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   
   Future<void> _captureImage() async {
     try {
-      // Check camera permission
       final cameraStatus = await Permission.camera.request();
       if (cameraStatus != PermissionStatus.granted) {
         if (mounted) {
@@ -785,7 +765,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         return;
       }
       
-      // Capture image
       final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
       
       if (photo != null) {
@@ -808,25 +787,25 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     }
   }
   
-  Future<void> _pickImageFromGallery() async {
+  Future<void> _pickImagesFromGallery() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      final List<XFile> images = await _picker.pickMultiImage();
       
-      if (image != null) {
+      if (images.isNotEmpty) {
         setState(() {
-          _capturedMedia.add(image.path);
+          _capturedMedia.addAll(images.map((e) => e.path));
         });
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Image selected from gallery')),
+            SnackBar(content: Text('${images.length} images selected from gallery')),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error selecting image: $e')),
+          SnackBar(content: Text('Error selecting images: $e')),
         );
       }
     }
@@ -834,15 +813,13 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   
   Future<String?> _compressAndUploadImage(String imagePath) async {
     try {
-      // Create a temporary file for the compressed image
       final compressedFile = File('${imagePath}_compressed.jpg');
       
-      // Compress the image
       final compressedImage = await FlutterImageCompress.compressAndGetFile(
         imagePath,
         compressedFile.path,
-        quality: 80, // Adjust quality as needed
-        minWidth: 1024, // Adjust dimensions as needed
+        quality: 80,
+        minWidth: 1024,
         minHeight: 1024,
       );
       
@@ -850,24 +827,19 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         throw Exception('Failed to compress image');
       }
       
-      // Get Supabase client
       final supabase = Supabase.instance.client;
       
-      // Get current user
       final user = supabase.auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
       
-      // Generate a unique file name
       final fileName = 'issues/${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
       
-      // Upload to Supabase storage
-      final response = await supabase.storage
+      await supabase.storage
           .from('media')
           .upload(fileName, File(compressedImage.path));
       
-      // Get the public URL of the uploaded file
       final publicUrl = supabase.storage
           .from('media')
           .getPublicUrl(fileName);
@@ -883,17 +855,15 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     }
   }
   
-  Future<void> _submitReport(List<String> mediaUrls) async {
+  Future<void> _submitReport() async {
     try {
       final supabase = Supabase.instance.client;
       
-      // Get current user
       final user = supabase.auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
       
-      // Validate required fields
       if (_selectedCategory.isEmpty) {
         throw Exception('Please select a category');
       }
@@ -905,32 +875,34 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
       if (_currentPosition == null) {
         throw Exception('Please provide a location');
       }
+
+      // Upload all media files
+      final uploadedMediaUrls = await _uploadAllMedia();
       
-      // Call the database function to create a new issue
-      final response = await supabase.rpc('create_civic_issue', params: {
+      await supabase.rpc('create_civic_issue', params: {
         'user_id': user.id,
         'category': _selectedCategory,
         'description': _description,
         'lat': _currentPosition!.latitude,
         'lng': _currentPosition!.longitude,
-        'address': 'Current Location', // In a real app, you'd get the actual address
-        'media_urls': mediaUrls,
+        'address': _location, // Use the updated location string
+        'media_urls': uploadedMediaUrls,
         'voice_note_url': null, // Not implemented yet
       });
       
-      // Reset form
       setState(() {
-        _currentStep = 0;
         _capturedMedia.clear();
         _selectedCategory = '';
         _description = '';
         _currentPosition = null;
+        _location = '';
       });
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report submitted successfully')),
         );
+        _showSubmissionSuccess();
       }
     } catch (e) {
       if (mounted) {
@@ -939,1075 +911,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         );
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Check if user is verified
-    if (!_isVerifiedUser) {
-      return _buildVerificationRequiredScreen();
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Report New Issue',
-          style: TextStyle(fontFamily: 'SFProRounded Medium'),
-        ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_currentStep > 0) {
-              _previousStep();
-            } else {
-              // Navigate back to home
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-      ),
-      body: Column(
-        children: [
-          // Progress indicator
-          _buildProgressIndicator(),
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                // Step 1: Media Capture
-                _buildMediaCaptureStep(),
-                // Step 2: AI Category Detection
-                _buildAICategoryDetectionStep(),
-                // Step 3: Description Input
-                _buildDescriptionStep(),
-                // Step 4: Location Confirmation
-                _buildLocationStep(),
-                // Step 5: Review & Submit
-                _buildReviewStep(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressIndicator() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: List.generate(5, (index) {
-          return Expanded(
-            child: Container(
-              height: 4,
-              margin: EdgeInsets.only(right: index < 4 ? 4 : 0),
-              decoration: BoxDecoration(
-                color: _currentStep >= index
-                    ? Theme.of(context).primaryColor
-                    : Theme.of(context).dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildVerificationRequiredScreen() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.lock,
-              size: 64,
-              color: Theme.of(context).primaryColor,
-            ),
-            SizedBox(height: 24),
-            Text(
-              'Verification Required',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Medium',
-                fontSize: 24,
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'To report civic issues, please complete identity verification',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-            SizedBox(height: 24),
-            Text(
-              'Why verify?\n'
-              '✅ Prevent fake reports\n'
-              '✅ Build trusted community\n'
-              '✅ Unlock full features\n'
-              '✅ Earn recognition badges',
-              textAlign: TextAlign.left,
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 14,
-              ),
-            ),
-            SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () {
-                // TODO: Implement verification flow
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Verification flow not implemented yet'),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-              ),
-              child: Text(
-                'Verify with Aadhaar',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () {
-                // TODO: Implement verification flow
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Verification flow not implemented yet'),
-                  ),
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-              ),
-              child: Text(
-                'Verify with Voter ID',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () {
-                // TODO: Implement verification flow
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Verification flow not implemented yet'),
-                  ),
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-              ),
-              child: Text(
-                'Verify with Driving License',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMediaCaptureStep() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '📸 Capture Evidence',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 24),
-          Container(
-            height: 300,
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.camera_alt,
-                  size: 64,
-                  color: Theme.of(context).primaryColor,
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'Live Camera Feed',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Regular',
-                    fontSize: 16,
-                  ),
-                ),
-                SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: _captureImage,
-                      child: Text('📷 Capture'),
-                    ),
-                    SizedBox(width: 16),
-                    OutlinedButton(
-                      onPressed: () {
-                        // TODO: Implement video recording
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Video recording not implemented')),
-                        );
-                      },
-                      child: Text('🎥 Video'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 24),
-          Center(
-            child: Text(
-              'OR',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-          OutlinedButton(
-            onPressed: _pickImageFromGallery,
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 50),
-            ),
-            child: Text(
-              '📁 Choose from Gallery',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: () {
-              // TODO: Implement voice description
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Voice description not implemented')),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 50),
-            ),
-            child: Text(
-              '🎵 Voice Description (Optional)',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            '💡 Tip: Include multiple angles for better AI detection',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Regular',
-              fontSize: 14,
-              color: Theme.of(context).hintColor,
-            ),
-          ),
-          Spacer(),
-          if (_capturedMedia.isNotEmpty)
-            ElevatedButton(
-              onPressed: _nextStep,
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-              ),
-              child: Text(
-                'Next →',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAICategoryDetectionStep() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_selectedCategory.isEmpty) ...[
-            Text(
-              '🤖 JanSahayak AI Analyzing...',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Medium',
-                fontSize: 20,
-              ),
-            ),
-            SizedBox(height: 24),
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Theme.of(context).dividerColor),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text(
-                    '🧠 Processing your image...',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    '████████░░ 80%',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Spacer(),
-            // Simulate AI detection completion
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _selectedCategory = 'POTHOLE';
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-              ),
-              child: Text(
-                'Simulate AI Detection Complete',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ] else ...[
-            Text(
-              '✅ AI Detection Complete',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Medium',
-                fontSize: 20,
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              '🎯 Detected: $_selectedCategory',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 18,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              '📊 Confidence: 95%',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-            SizedBox(height: 24),
-            Text(
-              'Select Category:',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Medium',
-                fontSize: 16,
-              ),
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _categories.length,
-                itemBuilder: (context, index) {
-                  final category = _categories[index];
-                  final isSelected = category == _selectedCategory;
-                  return Card(
-                    color: isSelected
-                        ? Theme.of(context).primaryColor.withOpacity(0.2)
-                        : Theme.of(context).cardColor,
-                    child: ListTile(
-                      title: Text(
-                        category,
-                        style: TextStyle(
-                          fontFamily: 'SFProRounded Regular',
-                          color: isSelected
-                              ? Theme.of(context).primaryColor
-                              : Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? Icon(Icons.check, color: Theme.of(context).primaryColor)
-                          : null,
-                      onTap: () {
-                        setState(() {
-                          _selectedCategory = category;
-                        });
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              '💡 AI got it right? Continue!\n'
-              '🔧 Wrong? Tap correct category',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 14,
-                color: Theme.of(context).hintColor,
-              ),
-            ),
-            Spacer(),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _previousStep,
-                    child: Text(
-                      '← Back',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _nextStep,
-                    child: Text(
-                      'Continue →',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDescriptionStep() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '📝 Describe the problem:',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            '$_selectedCategory Issue',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Regular',
-              fontSize: 18,
-            ),
-          ),
-          SizedBox(height: 16),
-          Expanded(
-            child: TextField(
-              maxLines: 6,
-              decoration: InputDecoration(
-                hintText: 'Describe the problem in detail...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignLabelWithHint: true,
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _description = value;
-                });
-              },
-            ),
-          ),
-          SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '${_description.length}/300',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 12,
-                color: Theme.of(context).hintColor,
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          Center(
-            child: Text(
-              'OR',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: () {
-              // TODO: Implement voice description
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Voice description not implemented')),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 50),
-            ),
-            child: Text(
-              '🎤 Voice Description',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Text(
-                '🌍 Language:',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
-              ),
-              SizedBox(width: 8),
-              DropdownButton<String>(
-                value: 'English',
-                items: ['English', 'Hindi', 'Bengali', 'Marathi', 'Tamil']
-                    .map((String language) => DropdownMenuItem<String>(
-                          value: language,
-                          child: Text(language),
-                        ))
-                    .toList(),
-                onChanged: (String? newValue) {
-                  // TODO: Implement language change
-                },
-              ),
-            ],
-          ),
-          Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _previousStep,
-                  child: Text(
-                    '← Back',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _nextStep,
-                  child: Text(
-                    'Continue →',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationStep() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '📍 Issue Location',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 24),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Theme.of(context).dividerColor),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.map,
-                    size: 64,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Interactive Map View',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  if (_currentPosition != null) ...[
-                    Text(
-                      '📍 You are here',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 14,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}\n'
-                      'Lng: ${_currentPosition!.longitude.toStringAsFixed(6)}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 14,
-                      ),
-                    ),
-                  ] else ...[
-                    Text(
-                      '📍 Location not set',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.add),
-                        onPressed: () {
-                          // TODO: Implement zoom in
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.remove),
-                        onPressed: () {
-                          // TODO: Implement zoom out
-                        },
-                      ),
-                      SizedBox(width: 16),
-                      Text(
-                        _currentPosition != null
-                          ? '📡 GPS: ±${_currentPosition!.accuracy.toStringAsFixed(1)}m'
-                          : '📡 GPS: Not available',
-                        style: TextStyle(
-                          fontFamily: 'SFProRounded Regular',
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-          Text(
-            '📮 Address:',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 16,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            _currentPosition != null
-              ? 'Current Location\n'
-                'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}, '
-                'Lng: ${_currentPosition!.longitude.toStringAsFixed(6)}'
-              : 'MG Road, near City Hospital\n'
-                'Battigul, Ranchi, Jharkhand',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Regular',
-              fontSize: 14,
-            ),
-          ),
-          SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: _isLoadingLocation ? null : _getCurrentLocation,
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 50),
-            ),
-            child: _isLoadingLocation
-              ? Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      'Getting Location...',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                )
-              : Text(
-                  '🎯 Use Current Location',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Regular',
-                    fontSize: 16,
-                  ),
-                ),
-          ),
-          SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: () {
-              // TODO: Implement location search
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Search location not implemented')),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 50),
-            ),
-            child: Text(
-              '🗺️ Search Different Location',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            _currentPosition != null
-              ? '✅ GPS Accuracy: ${_currentPosition!.accuracy < 10 ? "High" : "Medium"} (±${_currentPosition!.accuracy.toStringAsFixed(1)} meters)'
-              : '⚠️ GPS Accuracy: Not available',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Regular',
-              fontSize: 14,
-              color: _currentPosition != null && _currentPosition!.accuracy < 10
-                ? Colors.green
-                : _currentPosition != null
-                  ? Colors.orange
-                  : Colors.red,
-            ),
-          ),
-          Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _previousStep,
-                  child: Text(
-                    '← Back',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _currentPosition != null ? _nextStep : null,
-                  child: Text(
-                    'Continue →',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReviewStep() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '👀 Please Review Your Report',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.circle, size: 24, color: Theme.of(context).primaryColor),
-                      SizedBox(width: 8),
-                      Text(
-                        '$_selectedCategory ISSUE',
-                        style: TextStyle(
-                          fontFamily: 'SFProRounded Medium',
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Theme.of(context).dividerColor),
-                    ),
-                    child: _capturedMedia.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            File(_capturedMedia.first),
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                          ),
-                        )
-                      : Center(
-                          child: Text(
-                            '📸 No image captured',
-                            style: TextStyle(
-                              fontFamily: 'SFProRounded Regular',
-                            ),
-                          ),
-                        ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    _description.isEmpty ? '"Add a description..."' : '"$_description"',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    _currentPosition != null
-                      ? '📍 Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}, '
-                        'Lng: ${_currentPosition!.longitude.toStringAsFixed(6)}\n'
-                        '   Accuracy: ±${_currentPosition!.accuracy.toStringAsFixed(1)}m'
-                      : '📍 MG Road, near City Hospital\n'
-                        '   Ranchi, Jharkhand',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '⏰ Reported: Dec 13, 2025 13:45',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 12,
-                      color: Theme.of(context).hintColor,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '👤 Reporter: Ayush Kumar',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 12,
-                      color: Theme.of(context).hintColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton(
-                onPressed: () {
-                  // TODO: Edit category
-                  setState(() {
-                    _currentStep = 1;
-                  });
-                },
-                child: Text('✏️ Edit Category'),
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  // TODO: Change photo
-                  setState(() {
-                    _currentStep = 0;
-                  });
-                },
-                child: Text('🖼️ Change Photo'),
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  // TODO: Edit description
-                  setState(() {
-                    _currentStep = 2;
-                  });
-                },
-                child: Text('📝 Edit Description'),
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  // TODO: Edit location
-                  setState(() {
-                    _currentStep = 3;
-                  });
-                },
-                child: Text('📍 Edit Location'),
-              ),
-            ],
-          ),
-          Spacer(),
-          CheckboxListTile(
-            title: Text(
-              'I confirm this is accurate',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-              ),
-            ),
-            value: true, // TODO: Implement actual checkbox state
-            onChanged: (bool? value) {},
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
-          CheckboxListTile(
-            title: Text(
-              'I agree to terms of service',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-              ),
-            ),
-            value: true, // TODO: Implement actual checkbox state
-            onChanged: (bool? value) {},
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _previousStep,
-                  child: Text(
-                    '← Back',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    // Upload media and submit report
-                    final uploadedMediaUrls = await _uploadAllMedia();
-                    await _submitReport(uploadedMediaUrls);
-                    _showSubmissionSuccess();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: Size(double.infinity, 50),
-                    backgroundColor: Theme.of(context).primaryColor,
-                  ),
-                  child: Text(
-                    '📤 Submit Report',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 
   Future<List<String>> _uploadAllMedia() async {
@@ -2076,8 +979,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop(); // Close dialog
-                  // Navigate back to home
-                  Navigator.of(context).pop();
                 },
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(double.infinity, 50),
@@ -2094,8 +995,6 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
               OutlinedButton(
                 onPressed: () {
                   Navigator.of(context).pop(); // Close dialog
-                  // Navigate back to home
-                  Navigator.of(context).pop();
                 },
                 style: OutlinedButton.styleFrom(
                   minimumSize: Size(double.infinity, 50),
@@ -2112,6 +1011,354 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
           ),
         );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isVerifiedUser) {
+      return _buildVerificationRequiredScreen();
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '📸 Capture Evidence',
+            style: TextStyle(
+              fontFamily: 'SFProRounded Medium',
+              fontSize: 20,
+            ),
+          ),
+          SizedBox(height: 24),
+          // Display captured media
+          if (_capturedMedia.isNotEmpty)
+            Container(
+              height: 150,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _capturedMedia.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(_capturedMedia[index]),
+                            fit: BoxFit.cover,
+                            width: 100,
+                            height: 150,
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _capturedMedia.removeAt(index);
+                              });
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(Icons.close, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _captureImage,
+                  child: Text('📷 Camera'),
+                ),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _pickImagesFromGallery,
+                  child: Text('📁 Gallery'),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 24),
+          Text(
+            '📍 Issue Location',
+            style: TextStyle(
+              fontFamily: 'SFProRounded Medium',
+              fontSize: 20,
+            ),
+          ),
+          SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_isLoadingLocation)
+                    Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  else if (_currentPosition != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current Location:',
+                          style: TextStyle(
+                            fontFamily: 'SFProRounded Medium',
+                            fontSize: 16,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}',
+                          style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                        ),
+                        Text(
+                          'Lng: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                          style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                        ),
+                        Text(
+                          'Accuracy: ±${_currentPosition!.accuracy.toStringAsFixed(1)}m',
+                          style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      'Location not available. Please enable GPS.',
+                      style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                    ),
+                  SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _isLoadingLocation ? null : _getCurrentLocation,
+                      child: Text('Refresh Location'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 24),
+          Text(
+            'Category',
+            style: TextStyle(
+              fontFamily: 'SFProRounded Medium',
+              fontSize: 20,
+            ),
+          ),
+          SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory.isNotEmpty ? _selectedCategory : null,
+            decoration: InputDecoration(
+              labelText: 'Select Category',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            items: _categories.map((String category) {
+              return DropdownMenuItem<String>(
+                value: category,
+                child: Text(category),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedCategory = newValue ?? '';
+              });
+            },
+          ),
+          SizedBox(height: 24),
+          Text(
+            '📝 Description',
+            style: TextStyle(
+              fontFamily: 'SFProRounded Medium',
+              fontSize: 20,
+            ),
+          ),
+          SizedBox(height: 16),
+          TextField(
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'Describe the problem in detail...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _description = value;
+              });
+            },
+          ),
+          SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () {
+              // TODO: Implement voice description
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Voice description not implemented')),
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              minimumSize: Size(double.infinity, 50),
+            ),
+            child: Text(
+              '🎤 Add Voice Note (Optional)',
+              style: TextStyle(
+                fontFamily: 'SFProRounded Regular',
+                fontSize: 16,
+              ),
+            ),
+          ),
+          SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _submitReport,
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                '📤 Submit Report',
+                style: TextStyle(
+                  fontFamily: 'SFProRounded Medium',
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerificationRequiredScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.lock,
+              size: 64,
+              color: Theme.of(context).primaryColor,
+            ),
+            SizedBox(height: 24),
+            Text(
+              'Verification Required',
+              style: TextStyle(
+                fontFamily: 'SFProRounded Medium',
+                fontSize: 24,
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'To report civic issues, please complete identity verification',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'SFProRounded Regular',
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 24),
+            Text(
+              'Why verify?\n'
+              '✅ Prevent fake reports\n'
+              '✅ Build trusted community\n'
+              '✅ Unlock full features\n'
+              '✅ Earn recognition badges',
+              textAlign: TextAlign.left,
+              style: TextStyle(
+                fontFamily: 'SFProRounded Regular',
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Verification flow not implemented yet'),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
+              ),
+              child: Text(
+                'Verify with Aadhaar',
+                style: TextStyle(
+                  fontFamily: 'SFProRounded Regular',
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Verification flow not implemented yet'),
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
+              ),
+              child: Text(
+                'Verify with Voter ID',
+                style: TextStyle(
+                  fontFamily: 'SFProRounded Regular',
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Verification flow not implemented yet'),
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
+              ),
+              child: Text(
+                'Verify with Driving License',
+                style: TextStyle(
+                  fontFamily: 'SFProRounded Regular',
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

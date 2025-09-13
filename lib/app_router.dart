@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_page.dart';
 import 'home_page.dart';
 import 'admin_page.dart';
+import 'issue_detail_page.dart';
 
 final GoRouter appRouter = GoRouter(
   routes: [
@@ -18,6 +19,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/admin',
       builder: (context, state) => const AdminPage(),
+    ),
+    GoRoute(
+      path: '/issue/:issueId',
+      builder: (context, state) => IssueDetailPage(
+        issueId: state.pathParameters['issueId']!,
+      ),
     ),
   ],
   redirect: (context, state) async {
