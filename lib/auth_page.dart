@@ -311,7 +311,7 @@ class _AuthPageState extends State<AuthPage> {
                   const Text(
                     'JanSahayak',
                     style: TextStyle(
-                      fontSize: 48,
+                      fontSize: 56,
                       fontWeight: FontWeight.bold,
                       color: Colors.deepPurple, // A prominent color
                       fontFamily: 'SFProRounded Bold',
@@ -320,7 +320,7 @@ class _AuthPageState extends State<AuthPage> {
                   const SizedBox(height: 40.0),
                   CupertinoSlidingSegmentedControl<AuthMode>(
                     groupValue: _selectedAuthMode.first,
-                    backgroundColor: Theme.of(context).cardColor.withOpacity(0.5),
+                    backgroundColor: Theme.of(context).cardColor.withAlpha(5),
                     thumbColor: Theme.of(context).primaryColor,
                     padding: const EdgeInsets.all(8),
                     children: <AuthMode, Widget>{
@@ -597,9 +597,8 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
           ),
-          Positioned(
-            bottom: 24.0, // Adjust as needed for desired spacing
-            left: 24.0, // Adjust as needed for desired spacing
+          Align(
+            alignment: Alignment.bottomLeft,
             child: IconButton(
               icon: Icon(Theme.of(context).brightness == Brightness.dark
                   ? Icons.light_mode
