@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jansahayak/profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jansahayak/main.dart'; // Import main.dart to access themeNotifier
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
@@ -8,6 +9,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:io';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,19 +22,31 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   
-  final List<Widget> _pages = [
-    const FeedPage(),
-    const ReportProblemPage(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      FeedPage(onReportPressed: () {
+        setState(() {
+          _currentIndex = 1;
+        });
+      }),
+      const ReportProblemPage(),
+      const SettingsPage()
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'JanSahayak',
-          style: TextStyle(fontFamily: 'SFProRounded Medium'),
+        title: Text(
+          _getPageTitle(_currentIndex),
+          style: const TextStyle(fontFamily: 'SFProRounded Medium'),
         ),
+        centerTitle: true, // Center the title
         actions: [
           IconButton(
             icon: Icon(Theme.of(context).brightness == Brightness.dark
@@ -70,21 +85,31 @@ class _HomePageState extends State<HomePage> {
         animationCurve: Curves.easeInOut,
         animationDuration: const Duration(milliseconds: 300),
         onTap: (index) {
-          if (index == 2) { // Assuming the person icon is at index 2
-            context.push('/profile'); // Navigate to the new profile page
-          } else {
-            setState(() {
-              _currentIndex = index;
-            });
-          }
+          setState(() {
+            _currentIndex = index;
+          });
         },
       ),
     );
   }
+
+  String _getPageTitle(int index) {
+    switch (index) {
+      case 0:
+        return 'Feed';
+      case 1:
+        return 'Raise Issues';
+      case 2:
+        return 'Profile';
+      default:
+        return 'JanSahayak'; // Default title
+    }
+  }
 }
 
 class FeedPage extends StatefulWidget {
-  const FeedPage({super.key});
+  final VoidCallback onReportPressed;
+  const FeedPage({super.key, required this.onReportPressed});
   
   @override
   State<FeedPage> createState() => _FeedPageState();
@@ -99,7 +124,18 @@ class _FeedPageState extends State<FeedPage> {
   DateTime? _startDate;
   DateTime? _endDate;
   String _dateFilterType = 'All Time'; // 'All Time', 'Last Week', 'Last Month', 'Custom Range'
-  
+  final TextEditingController _searchController = TextEditingController();
+  final List<String> _categories = [
+    'PotHoles',
+    'Power Cut',
+    'Water Leak',
+    'Sewage Overflow',
+    'Garbage Issue',
+    'Street Light',
+    'Drainage Problem',
+    'Other'
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -202,6 +238,13 @@ class _FeedPageState extends State<FeedPage> {
       });
       
       List<dynamic> filteredIssues = response as List<dynamic>;
+
+      // Deduplicate issues based on their 'id'
+      final uniqueIssues = <String, dynamic>{};
+      for (var issue in filteredIssues) {
+        uniqueIssues[issue['id'] as String] = issue;
+      }
+      filteredIssues = uniqueIssues.values.toList();
       
       // Apply category filter
       if (!_selectedCategories.contains('All') && _selectedCategories.isNotEmpty) {
@@ -213,6 +256,15 @@ class _FeedPageState extends State<FeedPage> {
         filteredIssues = filteredIssues.where((issue) {
           final issueDate = DateTime.parse(issue['created_at'] ?? '1970-01-01T00:00:00Z');
           return issueDate.isAfter(_startDate!) && issueDate.isBefore(_endDate!);
+        }).toList();
+      }
+
+      // Apply search filter by issue ID (first 8 digits of UUID)
+      if (_searchController.text.isNotEmpty) {
+        final searchQuery = _searchController.text.toLowerCase();
+        filteredIssues = filteredIssues.where((issue) {
+          final issueId = issue['id'] as String? ?? '';
+          return issueId.toLowerCase().startsWith(searchQuery);
         }).toList();
       }
       
@@ -383,297 +435,39 @@ class _FeedPageState extends State<FeedPage> {
               ],
             ),
             SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by Issue ID (first 8 digits)',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
+              ),
+              onChanged: (value) {
+                if (_currentPosition != null) {
+                  _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                }
+              },
+            ),
+            SizedBox(height: 16),
             // Filter and sort controls
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Category filter
-                Text('Filter by Category:'),
-                Wrap(
-                  children: [
-                    FilterChip(
-                      label: Text('All'),
-                      selected: _selectedCategories.contains('All'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories = ['All'];
-                          } else {
-                            _selectedCategories.remove('All');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('POTHOLE'),
-                      selected: _selectedCategories.contains('POTHOLE'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('POTHOLE');
-                          } else {
-                            _selectedCategories.remove('POTHOLE');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Power Cut'),
-                      selected: _selectedCategories.contains('Power Cut'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Power Cut');
-                          } else {
-                            _selectedCategories.remove('Power Cut');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Water Leak'),
-                      selected: _selectedCategories.contains('Water Leak'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Water Leak');
-                          } else {
-                            _selectedCategories.remove('Water Leak');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Sewage Overflow'),
-                      selected: _selectedCategories.contains('Sewage Overflow'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Sewage Overflow');
-                          } else {
-                            _selectedCategories.remove('Sewage Overflow');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Garbage Issue'),
-                      selected: _selectedCategories.contains('Garbage Issue'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Garbage Issue');
-                          } else {
-                            _selectedCategories.remove('Garbage Issue');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Street Light'),
-                      selected: _selectedCategories.contains('Street Light'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Street Light');
-                          } else {
-                            _selectedCategories.remove('Street Light');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Drainage Problem'),
-                      selected: _selectedCategories.contains('Drainage Problem'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Drainage Problem');
-                          } else {
-                            _selectedCategories.remove('Drainage Problem');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Other'),
-                      selected: _selectedCategories.contains('Other'),
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedCategories.remove('All');
-                            _selectedCategories.add('Other');
-                          } else {
-                            _selectedCategories.remove('Other');
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                  ],
+                TextButton.icon(
+                  onPressed: () => _showFilterOptions(context),
+                  icon: Icon(Icons.filter_list),
+                  label: Text('Filter'),
                 ),
-                SizedBox(height: 8),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedCategories = ['All'];
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                      child: Text('Clear All'),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedCategories = [
-                            'POTHOLE', 'Power Cut', 'Water Leak', 'Sewage Overflow',
-                            'Garbage Issue', 'Street Light', 'Drainage Problem', 'Other'
-                          ];
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                      child: Text('Select All'),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-                // Sort order
-                Row(
-                  children: [
-                    Text('Sort:'),
-                    SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(_sortNewestFirst ? Icons.arrow_downward : Icons.arrow_upward),
-                      onPressed: () {
-                        setState(() {
-                          _sortNewestFirst = !_sortNewestFirst;
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-                    ),
-                    Text(_sortNewestFirst ? 'Newest' : 'Oldest'),
-                  ],
-                ),
-                SizedBox(height: 16),
-                // Date filter
-                Text('Filter by Date:'),
-                Wrap(
-                  children: [
-                    FilterChip(
-                      label: Text('All Time'),
-                      selected: _dateFilterType == 'All Time',
-                      onSelected: (bool selected) {
-                        setState(() {
-                          _dateFilterType = selected ? 'All Time' : '';
-                          _startDate = null;
-                          _endDate = null;
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Last Week'),
-                      selected: _dateFilterType == 'Last Week',
-                      onSelected: (bool selected) {
-                        setState(() {
-                          _dateFilterType = selected ? 'Last Week' : '';
-                          if (selected) {
-                            _endDate = DateTime.now();
-                            _startDate = DateTime.now().subtract(Duration(days: 7));
-                          } else {
-                            _startDate = null;
-                            _endDate = null;
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Last Month'),
-                      selected: _dateFilterType == 'Last Month',
-                      onSelected: (bool selected) {
-                        setState(() {
-                          _dateFilterType = selected ? 'Last Month' : '';
-                          if (selected) {
-                            _endDate = DateTime.now();
-                            _startDate = DateTime.now().subtract(Duration(days: 30));
-                          } else {
-                            _startDate = null;
-                            _endDate = null;
-                          }
-                          if (_currentPosition != null) {
-                            _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                          }
-                        });
-                      },
-    ),
-                    SizedBox(width: 8),
-                    FilterChip(
-                      label: Text('Custom Range'),
-                      selected: _dateFilterType == 'Custom Range',
-                      onSelected: (bool selected) {
-                        // TODO: Implement custom date range picker
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Custom date range not implemented yet')),
-                        );
-                      },
-    ),
-                  ],
+                SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => _showSortOptions(context),
+                  icon: Icon(Icons.sort),
+                  label: Text('Sort'),
                 ),
               ],
             ),
@@ -724,9 +518,7 @@ class _FeedPageState extends State<FeedPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  // Navigate to report problem page
-                },
+                onPressed: widget.onReportPressed,
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.all(16),
                   shape: RoundedRectangleBorder(
@@ -741,73 +533,6 @@ class _FeedPageState extends State<FeedPage> {
                   ),
                 ),
               ),
-            ),
-            SizedBox(height: 24),
-            // Recent activity section
-            Text(
-              'Recent Activity (2)',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Medium',
-                fontSize: 18,
-              ),
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            'My Reports',
-                            style: TextStyle(
-                              fontFamily: 'SFProRounded Medium',
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            '3',
-                            style: TextStyle(
-                              fontFamily: 'SFProRounded Regular',
-                              fontSize: 24,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Community',
-                            style: TextStyle(
-                              fontFamily: 'SFProRounded Medium',
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            '12',
-                            style: TextStyle(
-                              fontFamily: 'SFProRounded Regular',
-                              fontSize: 24,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -825,6 +550,194 @@ class _FeedPageState extends State<FeedPage> {
     } else {
       return 'Very High';
     }
+  }
+
+  void _showFilterOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Filter Issues',
+                    style: TextStyle(
+                      fontFamily: 'SFProRounded Medium',
+                      fontSize: 20,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text('Filter by Category:'),
+                  Wrap(
+                    spacing: 8.0,
+                    children: [
+                      FilterChip(
+                        label: Text('All'),
+                        selected: _selectedCategories.contains('All'),
+                        onSelected: (bool selected) {
+                          setModalState(() {
+                            if (selected) {
+                              _selectedCategories = ['All'];
+                            } else {
+                              _selectedCategories.remove('All');
+                            }
+                          });
+                        },
+                      ),
+                      ..._categories.map((category) => FilterChip(
+                        label: Text(category),
+                        selected: _selectedCategories.contains(category),
+                        onSelected: (bool selected) {
+                          setModalState(() {
+                            if (selected) {
+                              _selectedCategories.remove('All');
+                              _selectedCategories.add(category);
+                            } else {
+                              _selectedCategories.remove(category);
+                            }
+                          });
+                        },
+                      )).toList(),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  Text('Filter by Date:'),
+                  Wrap(
+                    spacing: 8.0,
+                    children: [
+                      FilterChip(
+                        label: Text('All Time'),
+                        selected: _dateFilterType == 'All Time',
+                        onSelected: (bool selected) {
+                          setModalState(() {
+                            _dateFilterType = selected ? 'All Time' : '';
+                            _startDate = null;
+                            _endDate = null;
+                          });
+                        },
+                      ),
+                      FilterChip(
+                        label: Text('Last Week'),
+                        selected: _dateFilterType == 'Last Week',
+                        onSelected: (bool selected) {
+                          setModalState(() {
+                            _dateFilterType = selected ? 'Last Week' : '';
+                            if (selected) {
+                              _endDate = DateTime.now();
+                              _startDate = DateTime.now().subtract(Duration(days: 7));
+                            } else {
+                              _startDate = null;
+                              _endDate = null;
+                            }
+                          });
+                        },
+                      ),
+                      FilterChip(
+                        label: Text('Last Month'),
+                        selected: _dateFilterType == 'Last Month',
+                        onSelected: (bool selected) {
+                          setModalState(() {
+                            _dateFilterType = selected ? 'Last Month' : '';
+                            if (selected) {
+                              _endDate = DateTime.now();
+                              _startDate = DateTime.now().subtract(Duration(days: 30));
+                            } else {
+                              _startDate = null;
+                              _endDate = null;
+                            }
+                          });
+                        },
+                      ),
+                      // TODO: Implement custom date range picker
+                    ],
+                  ),
+                  SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Close the bottom sheet
+                        if (_currentPosition != null) {
+                          _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                        }
+                      },
+                      child: Text('Apply Filters'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSortOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sort Issues',
+                    style: TextStyle(
+                      fontFamily: 'SFProRounded Medium',
+                      fontSize: 20,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  RadioListTile<bool>(
+                    title: Text('Newest First'),
+                    value: true,
+                    groupValue: _sortNewestFirst,
+                    onChanged: (bool? value) {
+                      setModalState(() {
+                        _sortNewestFirst = value!;
+                      });
+                    },
+                  ),
+                  RadioListTile<bool>(
+                    title: Text('Oldest First'),
+                    value: false,
+                    groupValue: _sortNewestFirst,
+                    onChanged: (bool? value) {
+                      setModalState(() {
+                        _sortNewestFirst = value!;
+                      });
+                    },
+                  ),
+                  SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Close the bottom sheet
+                        if (_currentPosition != null) {
+                          _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                        }
+                      },
+                      child: Text('Apply Sort'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
   
   Widget _buildIssueCardFromData(dynamic issue) {
@@ -1014,7 +927,14 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   String _description = '';
   String _location = ''; // This will be updated with the actual address
   bool _isVerifiedUser = true; // This should come from user profile in real implementation
+  bool _isSubmitting = false; // New state variable for submission
   
+  // Speech to Text
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  bool _isListening = false;
+  String _lastWords = '';
+
   // Location data
   Position? _currentPosition;
   bool _isLoadingLocation = false;
@@ -1035,9 +955,54 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   ];
 
   @override
+  @override
   void initState() {
     super.initState();
     _getCurrentLocation(); // Automatically capture location on page load
+    _initSpeech();
+  }
+
+  /// This initializes the speech to text plugin.
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize();
+    setState(() {});
+  }
+
+  /// Each time to start a speech recognition session
+  void _startListening() async {
+    if (_speechEnabled) {
+      setState(() {
+        _isListening = true;
+      });
+      await _speechToText.listen(
+        onResult: _onSpeechResult,
+        listenFor: const Duration(seconds: 30), // Listen for up to 30 seconds
+        localeId: 'en_IN', // Specify Indian English locale
+      );
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Speech recognition not available')),
+        );
+      }
+    }
+  }
+
+  /// Manually stop the active speech recognition session
+  void _stopListening() async {
+    await _speechToText.stop();
+    setState(() {
+      _isListening = false;
+    });
+  }
+
+  /// This is the callback that the SpeechToText plugin calls when
+  /// the platform returns a new result.
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    setState(() {
+      _lastWords = result.recognizedWords;
+      _description = _description + (_description.isEmpty ? '' : ' ') + _lastWords;
+    });
   }
 
   Future<void> _checkLocationPermission() async {
@@ -1219,6 +1184,9 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   }
   
   Future<void> _submitReport() async {
+    setState(() {
+      _isSubmitting = true;
+    });
     try {
       final supabase = Supabase.instance.client;
       
@@ -1276,6 +1244,10 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
           SnackBar(content: Text('Error submitting report: $e')),
         );
       }
+    } finally {
+      setState(() {
+        _isSubmitting = false;
+      });
     }
   }
 
@@ -1295,92 +1267,158 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   void _showSubmissionSuccess(String? issueId) {
     showDialog(
       context: context,
+      barrierDismissible: false, // User must tap a button to close
       builder: (BuildContext context) {
-        return AlertDialog(
+        return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.check_circle,
-                size: 64,
-                color: Colors.green,
-              ),
-              SizedBox(height: 16),
-              Text(
-                '✅ Report Submitted!',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Medium',
-                  fontSize: 20,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 80,
+                  color: Colors.green,
                 ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                '🎉 Success! 🎉\n\n'
-                'Your report has been received\n'
-                'and is being processed...\n\n'
-                '📍 Location: ${_currentPosition != null ? "Captured" : "Not captured"}\n'
-                '📸 Media: ${_capturedMedia.length} item(s)\n'
-                '🤖 Checking for similar issues...\n'
-                '████████░░ Processing...',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 14,
+                SizedBox(height: 24),
+                Text(
+                  'Report Submitted!',
+                  style: TextStyle(
+                    fontFamily: 'SFProRounded Medium',
+                    fontSize: 24,
+                    color: Theme.of(context).textTheme.titleLarge?.color,
+                  ),
                 ),
-              ),
-              SizedBox(height: 24),
-              Text(
-                '📧 You\'ll receive updates via\n'
-                '   push notifications',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 14,
-                ),
-              ),
-              SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close dialog
-                  // Navigate to IssueDetailPage if issueId is available
-                  if (issueId != null && context.mounted) {
-                    context.push('/issue/$issueId');
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 50),
-                ),
-                child: Text(
-                  '📊 View Report Status',
+                SizedBox(height: 12),
+                Text(
+                  'Your report has been received and is being processed.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'SFProRounded Regular',
                     fontSize: 16,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
-              ),
-              SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close dialog
-                },
-                style: OutlinedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 50),
+                SizedBox(height: 24),
+                _buildStatusRow(
+                  context,
+                  Icons.location_on,
+                  _currentPosition != null ? 'Location Captured' : 'Location Not Captured',
+                  _currentPosition != null ? Colors.green : Colors.red,
                 ),
-                child: Text(
-                  '🏠 Return to Home',
+                SizedBox(height: 12),
+                _buildStatusRow(
+                  context,
+                  Icons.image,
+                  'Media: ${_capturedMedia.length} item(s)',
+                  _capturedMedia.isNotEmpty ? Colors.green : Colors.orange,
+                ),
+                SizedBox(height: 12),
+                _buildStatusRow(
+                  context,
+                  Icons.search,
+                  'Checking for similar issues...',
+                  Colors.blue,
+                  showProgress: true,
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'You\'ll receive updates via push notifications.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'SFProRounded Regular',
-                    fontSize: 16,
+                    fontSize: 14,
+                    color: Theme.of(context).hintColor,
                   ),
                 ),
-              ),
-            ],
+                SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    if (issueId != null && context.mounted) {
+                      context.push('/issue/$issueId');
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                    'View Report Status',
+                    style: TextStyle(
+                      fontFamily: 'SFProRounded Medium',
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                    foregroundColor: Theme.of(context).primaryColor,
+                  ),
+                  child: Text(
+                    'Return to Home',
+                    style: TextStyle(
+                      fontFamily: 'SFProRounded Medium',
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildStatusRow(BuildContext context, IconData icon, String text, Color color, {bool showProgress = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 20),
+        SizedBox(width: 8),
+        Text(
+          text,
+          style: TextStyle(
+            fontFamily: 'SFProRounded Regular',
+            fontSize: 15,
+            color: Theme.of(context).textTheme.bodyMedium?.color,
+          ),
+        ),
+        if (showProgress) ...[
+          SizedBox(width: 8),
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1567,35 +1605,26 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
           ),
           SizedBox(height: 16),
           TextField(
+            controller: TextEditingController(text: _description),
+            onChanged: (value) {
+              _description = value;
+            },
             maxLines: 4,
             decoration: InputDecoration(
               hintText: 'Describe the problem in detail...',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _description = value;
-              });
-            },
-          ),
-          SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: () {
-              // TODO: Implement voice description
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Voice description not implemented')),
-              );
-            },
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(double.infinity, 50),
-            ),
-            child: Text(
-              '🎤 Add Voice Note (Optional)',
-              style: TextStyle(
-                fontFamily: 'SFProRounded Regular',
-                fontSize: 16,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isListening ? Icons.mic_off : Icons.mic,
+                  color: _isListening ? Colors.red : Theme.of(context).iconTheme.color,
+                ),
+                onPressed: _speechEnabled
+                    ? () {
+                        _isListening ? _stopListening() : _startListening();
+                      }
+                    : null,
               ),
             ),
           ),
@@ -1603,20 +1632,29 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _submitReport,
+              onPressed: _isSubmitting ? null : _submitReport, // Disable button when submitting
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.all(16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Text(
-                '📤 Submit Report',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Medium',
-                  fontSize: 18,
-                ),
-              ),
+              child: _isSubmitting
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        strokeWidth: 3,
+                      ),
+                    )
+                  : Text(
+                      '📤 Submit Report',
+                      style: TextStyle(
+                        fontFamily: 'SFProRounded Medium',
+                        fontSize: 18,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -1760,12 +1798,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Settings',
-          style: TextStyle(fontFamily: 'SFProRounded Medium'),
-        ),
-      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),

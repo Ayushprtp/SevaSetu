@@ -109,7 +109,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
             status,
             priority_score,
             created_at,
-            upvotes_count
+            upvotes
           ''')
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
@@ -196,7 +196,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
     final issueNumber = issueId.substring(0, 8); // First 8 digits of UUID as issue number
     final category = issue['category'] as String? ?? 'Unknown';
     final address = issue['address'] as String? ?? 'Unknown location';
-    final upvotes = issue['upvotes_count'] as int? ?? 0;
+    final upvotes = issue['upvotes'] as int? ?? 0;
     final priorityScore = issue['priority_score'] as int? ?? 0;
     final priorityLabel = _getPriorityLabel(priorityScore);
     final distance = _calculateDistance(issue);

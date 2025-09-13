@@ -568,7 +568,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                 ),
                 ElevatedButton.icon(
                   onPressed: () => _upvoteIssue(issueId),
-                  icon: Icon(Icons.thumb_up),
+                  icon: Icon(Icons.arrow_upward),
                   label: const Text('Upvote'),
                   style: ElevatedButton.styleFrom(
                     minimumSize: Size.zero,

@@ -201,19 +201,20 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION upvote_issue(p_user_id UUID, p_issue_id UUID)
 RETURNS INTEGER AS $$
 DECLARE
-    new_upvote_count INTEGER;
+    current_upvotes INTEGER;
 BEGIN
     -- Insert upvote if not exists
     INSERT INTO issue_upvotes (user_id, issue_id)
     VALUES (p_user_id, p_issue_id)
     ON CONFLICT (user_id, issue_id) DO NOTHING;
-    
-    -- Get new upvote count
-    SELECT upvotes INTO new_upvote_count
-    FROM civic_issues
-    WHERE id = p_issue_id;
-    
-    RETURN new_upvote_count;
+
+    -- Update the upvotes count in civic_issues
+    UPDATE civic_issues
+    SET upvotes = (SELECT COUNT(*) FROM issue_upvotes WHERE issue_id = p_issue_id)
+    WHERE id = p_issue_id
+    RETURNING upvotes INTO current_upvotes;
+
+    RETURN current_upvotes;
 END;
 $$ LANGUAGE plpgsql;
 
