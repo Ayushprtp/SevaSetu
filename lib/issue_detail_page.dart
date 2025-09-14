@@ -14,6 +14,7 @@ class IssueDetailPage extends StatefulWidget {
 
 class _IssueDetailPageState extends State<IssueDetailPage> {
   Map<String, dynamic>? _issueDetails;
+  Map<String, dynamic>? _reporterDetails;
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -28,20 +29,61 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
+        // Reset reporter details on new fetch
+        _reporterDetails = null;
       });
 
       final supabase = Supabase.instance.client;
+      
+      // Fetch issue details with user join
       final response = await supabase
           .from('civic_issues')
           .select('''
             *,
-            users!civic_issues_user_id_fkey(first_name, last_name)
+            users:user_id(username, first_name, last_name)
           ''')
           .eq('id', widget.issueId)
           .single();
+      
+      print('Issue details response: $response');
+      
+      // Extract reporter data from the join
+      final usersData = response['users'];
+      print('Joined users data: $usersData');
+      print('Response keys: ${response.keys}');
+      
+      Map<String, dynamic>? reporterData = usersData is Map<String, dynamic> ? usersData : null;
+      
+      // Check if joined user data is valid (has non-null username, first_name or last_name)
+      bool hasValidJoinedUserData = reporterData != null &&
+          (reporterData['username'] != null || reporterData['first_name'] != null || reporterData['last_name'] != null);
+      
+      // If user data is not in the join or is invalid, fetch it separately
+      if (!hasValidJoinedUserData) {
+        final userId = response['user_id'] as String?;
+        if (userId != null) {
+          try {
+            final userResponse = await supabase
+                .from('users')
+                .select('username, first_name, last_name')
+                .eq('id', userId)
+                .maybeSingle();
+            // Only set reporterData if the separate fetch was successful and returned data
+            print('Separate user fetch result: $userResponse');
+            if (userResponse != null) {
+              reporterData = userResponse as Map<String, dynamic>;
+            }
+          } catch (userFetchError) {
+            // If we can't fetch user data, reporterData remains null
+            print('Error fetching user data for user_id $userId: $userFetchError');
+          }
+        }
+      }
 
+      print('Final reporterData: $reporterData');
       setState(() {
         _issueDetails = response;
+        _reporterDetails = reporterData;
         _isLoading = false;
       });
     } catch (e) {
@@ -106,8 +148,40 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
     final category = _issueDetails!['category'] as String? ?? 'Unknown';
     final address = _issueDetails!['address'] as String? ?? 'Unknown location';
     final createdAt = DateTime.parse(_issueDetails!['created_at'] as String);
-    final reporterFirstName = _issueDetails!['users']['first_name'] as String? ?? 'Anonymous';
-    final reporterLastName = _issueDetails!['users']['last_name'] as String? ?? '';
+    
+    // Use separately fetched reporter details if available, otherwise fall back to joined data
+    String reporterName = '';
+    
+    // Helper function to build name from available fields
+    String _buildDisplayName(Map<String, dynamic> userData) {
+      final firstName = userData['first_name'] as String?;
+      final lastName = userData['last_name'] as String?;
+      final username = userData['username'] as String?;
+      
+      if (firstName != null && lastName != null) {
+        return '$firstName $lastName';
+      } else if (firstName != null) {
+        return firstName;
+      } else if (lastName != null) {
+        return lastName;
+      } else if (username != null) {
+        return username;
+      }
+      return '';
+    }
+    
+    if (_reporterDetails != null) {
+      reporterName = _buildDisplayName(_reporterDetails!);
+    } else if (_issueDetails!['users'] != null) {
+      final usersData = _issueDetails!['users'] as Map<String, dynamic>?;
+      // Check if usersData is valid (has non-null username, first_name or last_name)
+      bool hasValidUsersData = usersData != null &&
+          (usersData['username'] != null || usersData['first_name'] != null || usersData['last_name'] != null);
+      
+      if (hasValidUsersData) {
+        reporterName = _buildDisplayName(usersData!);
+      }
+    }
 
     return Card(
       elevation: 2,
@@ -143,20 +217,21 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.person, size: 18, color: Theme.of(context).hintColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Reported by: $reporterFirstName $reporterLastName',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Regular',
-                    fontSize: 14,
-                    color: Theme.of(context).hintColor,
+            if (reporterName.isNotEmpty)
+              Row(
+                children: [
+                  Icon(Icons.person, size: 18, color: Theme.of(context).hintColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Reported by: $reporterName',
+                    style: TextStyle(
+                      fontFamily: 'SFProRounded Regular',
+                      fontSize: 14,
+                      color: Theme.of(context).hintColor,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 8),
             Row(
               children: [

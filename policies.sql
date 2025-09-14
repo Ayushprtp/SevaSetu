@@ -25,11 +25,11 @@ ALTER TABLE civic_issues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE issue_upvotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE issue_clusters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cluster_members ENABLE ROW LEVEL SECURITY;
-`
+
 -- Policies for users table
--- Users can view and update their own profile
-CREATE POLICY "Users can view their own profile" ON users
-FOR SELECT USING (auth.uid() = id);
+-- Users can view all profiles (for issue reporting transparency)
+CREATE POLICY "Users can view all profiles" ON users
+FOR SELECT USING (true);
 
 CREATE POLICY "Users can update their own profile" ON users
 FOR UPDATE USING (auth.uid() = id);

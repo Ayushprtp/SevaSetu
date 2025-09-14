@@ -246,6 +246,38 @@ class _FeedPageState extends State<FeedPage> {
       }
       filteredIssues = uniqueIssues.values.toList();
       
+      // Fetch user information for each issue
+      for (int i = 0; i < filteredIssues.length; i++) {
+        final issue = filteredIssues[i];
+        final userId = issue['user_id'] as String?;
+        
+        if (userId != null) {
+          try {
+            // Try to get user data
+            final userResponse = await supabase
+                .from('users')
+                .select('first_name, last_name')
+                .eq('id', userId)
+                .single();
+            
+            // Add user data to the issue
+            filteredIssues[i] = Map<String, dynamic>.from(issue)
+              ..['reporter_first_name'] = userResponse['first_name'] as String? ?? 'Anonymous'
+              ..['reporter_last_name'] = userResponse['last_name'] as String? ?? '';
+          } catch (userFetchError) {
+            // If we can't fetch user data, set default values
+            filteredIssues[i] = Map<String, dynamic>.from(issue)
+              ..['reporter_first_name'] = 'Anonymous'
+              ..['reporter_last_name'] = '';
+          }
+        } else {
+          // If no user_id, set default values
+          filteredIssues[i] = Map<String, dynamic>.from(issue)
+            ..['reporter_first_name'] = 'Anonymous'
+            ..['reporter_last_name'] = '';
+        }
+      }
+      
       // Apply category filter
       if (!_selectedCategories.contains('All') && _selectedCategories.isNotEmpty) {
         filteredIssues = filteredIssues.where((issue) => _selectedCategories.contains(issue['category'])).toList();
@@ -749,6 +781,9 @@ class _FeedPageState extends State<FeedPage> {
     final priorityScore = issue['priority_score'] as int? ?? 0;
     final priorityLabel = _getPriorityLabel(priorityScore);
     final distanceKm = issue['distance_km'] as double? ?? 0.0;
+    final reporterFirstName = issue['reporter_first_name'] as String? ?? 'Anonymous';
+    final reporterLastName = issue['reporter_last_name'] as String? ?? '';
+    final reporterName = reporterFirstName == 'Anonymous' ? 'Anonymous' : '$reporterFirstName $reporterLastName';
     
     return GestureDetector(
       onTap: () {
@@ -1827,6 +1862,31 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: TextStyle(fontFamily: 'SFProRounded Regular'),
                   ),
                   trailing: Icon(Icons.arrow_forward_ios),
+                ),
+              ),
+              SizedBox(height: 24),
+
+              // My Reports Section
+              Text(
+                'My Activity',
+                style: TextStyle(
+                  fontFamily: 'SFProRounded Medium',
+                  fontSize: 20,
+                ),
+              ),
+              SizedBox(height: 16),
+              Card(
+                child: ListTile(
+                  leading: Icon(Icons.assignment),
+                  title: Text(
+                    'My Reports',
+                    style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                  ),
+                  trailing: Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    // Navigate to My Reports page
+                    context.push('/my-reports');
+                  },
                 ),
               ),
               SizedBox(height: 24),
