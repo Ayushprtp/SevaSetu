@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jansahayak/profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -119,6 +120,7 @@ class _FeedPageState extends State<FeedPage> {
   Position? _currentPosition;
   bool _isLoading = true;
   List<dynamic> _issues = [];
+  List<dynamic> _prioritizedIssues = [];
   List<String> _selectedCategories = ['All']; // List of selected categories
   bool _sortNewestFirst = true; // true for newest first, false for oldest first
   DateTime? _startDate;
@@ -135,22 +137,80 @@ class _FeedPageState extends State<FeedPage> {
     'Drainage Problem',
     'Other'
   ];
+  Map<String, dynamic>? _userData;
+  bool _showPrioritized = false; // false for Recents, true for Prioritized
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     _getCurrentLocationAndFetchIssues();
   }
   
-  String _getUserFirstName() {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      // Extract first name from email if no user data is available
-      final email = user.email ?? '';
-      final name = email.split('@').first;
-      return name.isNotEmpty ? name : 'User';
+  Future<void> _loadUserData() async {
+    final userData = await _getUserData();
+    if (mounted) {
+      setState(() {
+        _userData = userData;
+      });
+    }
+  }
+  
+  String _getUserFullName() {
+    if (_userData != null) {
+      final firstName = _userData!['first_name'] as String?;
+      final lastName = _userData!['last_name'] as String?;
+      if (firstName != null && firstName.isNotEmpty) {
+        return '$firstName ${lastName ?? ''}'.trim();
+      }
     }
     return 'User';
+  }
+
+  String _getUserUsername() {
+    if (_userData != null) {
+      final username = _userData!['username'] as String?;
+      if (username != null && username.isNotEmpty) {
+        return '@$username';
+      }
+    }
+    return '';
+  }
+
+  String _getGreeting() {
+    // Get current time in IST (UTC+5:30)
+    final now = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    final hour = now.hour;
+
+    if (hour >= 5 && hour < 12) {
+      return 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      return 'Good Afternoon';
+    } else if (hour >= 17 && hour < 21) {
+      return 'Good Evening';
+    } else {
+      return 'Good Night'; // Or 'Good Evening' if preferred for late night
+    }
+  }
+  
+  Future<Map<String, dynamic>?> _getUserData() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      
+      if (user == null) return null;
+      
+      final response = await supabase
+          .from('users')
+          .select('first_name, last_name, username')
+          .eq('id', user.id)
+          .single();
+      
+      return response as Map<String, dynamic>?;
+    } catch (e) {
+      // If we can't fetch user data, return null
+      return null;
+    }
   }
   
   Future<void> _getCurrentLocationAndFetchIssues() async {
@@ -234,7 +294,7 @@ class _FeedPageState extends State<FeedPage> {
       final response = await supabase.rpc('get_issues_within_radius', params: {
         'user_lat': lat,
         'user_lng': lng,
-        'radius_km': 15, // 15 km radius
+        'radius_km': 10, // 10 km radius
       });
       
       List<dynamic> filteredIssues = response as List<dynamic>;
@@ -300,17 +360,22 @@ class _FeedPageState extends State<FeedPage> {
         }).toList();
       }
       
-      // Apply date sort
-      // Assuming there's a 'created_at' field in the issue data
-      filteredIssues.sort((a, b) {
-        final dateA = DateTime.parse(a['created_at'] ?? '1970-01-01T00:00:00Z');
-        final dateB = DateTime.parse(b['created_at'] ?? '1970-01-01T00:00:00Z');
-        if (_sortNewestFirst) {
+      // Apply sorting based on selected view
+      if (_showPrioritized) {
+        // Sort by upvotes for "Prioritized" view (descending)
+        filteredIssues.sort((a, b) {
+          final upvotesA = a['upvotes'] as int? ?? 0;
+          final upvotesB = b['upvotes'] as int? ?? 0;
+          return upvotesB.compareTo(upvotesA);
+        });
+      } else {
+        // Sort by date for "Recents" view (newest first)
+        filteredIssues.sort((a, b) {
+          final dateA = DateTime.parse(a['created_at'] ?? '1970-01-01T00:00:00Z');
+          final dateB = DateTime.parse(b['created_at'] ?? '1970-01-01T00:00:00Z');
           return dateB.compareTo(dateA); // Newest first
-        } else {
-          return dateA.compareTo(dateB); // Oldest first
-        }
-      });
+        });
+      }
       
       setState(() {
         _issues = filteredIssues;
@@ -397,178 +462,203 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // User greeting section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return CustomScrollView(
+      slivers: [
+        CupertinoSliverNavigationBar(
+          largeTitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_getGreeting()}, ${_getUserFullName()}',
+                style: TextStyle(
+                  fontFamily: 'SFProRounded Medium',
+                  fontSize: 22,
+                  color: Theme.of(context).textTheme.titleLarge?.color,
+                ),
+              ),
+              if (_getUserUsername().isNotEmpty)
+                Text(
+                  _getUserUsername(),
+                  style: TextStyle(
+                    fontFamily: 'SFProRounded Regular',
+                    fontSize: 15,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
+                ),
+            ],
+          ),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              themeNotifier.value =
+                  Theme.of(context).brightness == Brightness.dark
+                      ? ThemeMode.light
+                      : ThemeMode.dark;
+            },
+            child: Icon(
+              Theme.of(context).brightness == Brightness.dark
+                  ? CupertinoIcons.sun_max_fill
+                  : CupertinoIcons.moon_fill,
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.all(16.0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(
+              [
+                // User greeting section (now part of SliverAppBar)
+                // Segmented control for Recents and Prioritized
+                CupertinoSegmentedControl<bool>(
+                  children: const {
+                    false: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Text('Recents'),
+                    ),
+                    true: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Text('Prioritized'),
+                    ),
+                  },
+                  groupValue: _showPrioritized,
+                  onValueChanged: (bool value) {
+                    setState(() {
+                      _showPrioritized = value;
+                      // Re-fetch issues based on the new selection
+                      if (_currentPosition != null) {
+                        _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                      }
+                    });
+                  },
+                ),
+                SizedBox(height: 24),
+                // Priority issues section (or Recents)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Text(
+                      _showPrioritized ? '🔥 Priority Issues' : '🕒 Recent Issues',
+                      style: TextStyle(
+                        fontFamily: 'SFProRounded Medium',
+                        fontSize: 18,
+                      ),
+                    ),
+                    if (_currentPosition != null)
+                      Text(
+                        '${_issues.length} issues nearby',
+                        style: TextStyle(
+                          fontFamily: 'SFProRounded Regular',
+                          fontSize: 14,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search by Issue ID (first 8 digits)',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
+                  ),
+                  onChanged: (value) {
+                    if (_currentPosition != null) {
+                      _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
+                    }
+                  },
+                ),
+                SizedBox(height: 16),
+                // Filter and sort controls
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _showFilterOptions(context),
+                      icon: Icon(Icons.filter_list),
+                      label: Text('Filter'),
+                    ),
+                    SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => _showSortOptions(context),
+                      icon: Icon(Icons.sort),
+                      label: Text('Sort'),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                if (_isLoading)
+                  Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+                    ),
+                  )
+                else if (_issues.isEmpty)
+                  Center(
+                    child: Column(
                       children: [
+                        Icon(
+                          Icons.info,
+                          size: 64,
+                          color: Theme.of(context).hintColor,
+                        ),
+                        SizedBox(height: 16),
                         Text(
-                          'Good Morning, ${_getUserFirstName()}!',
+                          'No issues found in your area',
                           style: TextStyle(
-                            fontFamily: 'SFProRounded Medium',
-                            fontSize: 18,
+                            fontFamily: 'SFProRounded Regular',
+                            fontSize: 16,
                           ),
                         ),
-                        Icon(Icons.verified, color: Colors.green),
+                        SizedBox(height: 8),
+                        Text(
+                          'Be the first to report an issue!',
+                          style: TextStyle(
+                            fontFamily: 'SFProRounded Regular',
+                            fontSize: 14,
+                            color: Theme.of(context).hintColor,
+                          ),
+                        ),
                       ],
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      '✅ Verified',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        color: Colors.green,
+                  )
+                else
+                  Column(
+                    children: _issues.map((issue) {
+                      return _buildIssueCardFromData(issue);
+                    }).toList(),
+                  ),
+                SizedBox(height: 24),
+                // Report button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: widget.onReportPressed,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.all(16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    SizedBox(height: 16),
-                    Row(
-                      children: [
-                        _buildStatItem('Points', '156'),
-                        SizedBox(width: 16),
-                        _buildStatItem('Badges', '5'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 24),
-            // Priority issues section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '🔥 Priority Issues',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Medium',
-                    fontSize: 18,
-                  ),
-                ),
-                if (_currentPosition != null)
-                  Text(
-                    '${_issues.length} issues nearby',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 14,
-                      color: Theme.of(context).hintColor,
+                    child: Text(
+                      '📸 Report New Issue',
+                      style: TextStyle(
+                        fontFamily: 'SFProRounded Medium',
+                        fontSize: 18,
+                      ),
                     ),
                   ),
-              ],
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by Issue ID (first 8 digits)',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Theme.of(context).cardColor,
-              ),
-              onChanged: (value) {
-                if (_currentPosition != null) {
-                  _fetchIssues(_currentPosition!.latitude, _currentPosition!.longitude);
-                }
-              },
-            ),
-            SizedBox(height: 16),
-            // Filter and sort controls
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _showFilterOptions(context),
-                  icon: Icon(Icons.filter_list),
-                  label: Text('Filter'),
-                ),
-                SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () => _showSortOptions(context),
-                  icon: Icon(Icons.sort),
-                  label: Text('Sort'),
                 ),
               ],
             ),
-            SizedBox(height: 16),
-            if (_isLoading)
-              Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-                ),
-              )
-            else if (_issues.isEmpty)
-              Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.info,
-                      size: 64,
-                      color: Theme.of(context).hintColor,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'No issues found in your area',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 16,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Be the first to report an issue!',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Regular',
-                        fontSize: 14,
-                        color: Theme.of(context).hintColor,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Column(
-                children: _issues.map((issue) {
-                  return _buildIssueCardFromData(issue);
-                }).toList(),
-              ),
-            SizedBox(height: 24),
-            // Report button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: widget.onReportPressed,
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  '📸 Report New Issue',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Medium',
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
   
