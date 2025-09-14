@@ -7,6 +7,7 @@ import 'admin_page.dart';
 import 'issue_detail_page.dart';
 import 'profile_page.dart';
 import 'my_reports_page.dart';
+import 'edit_profile_page.dart';
 
 final GoRouter appRouter = GoRouter(
   routes: [
@@ -31,6 +32,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/profile',
       builder: (context, state) => const ProfilePage(),
+    ),
+    GoRoute(
+      path: '/edit-profile',
+      builder: (context, state) => EditProfilePage(userData: state.extra as Map<String, dynamic>?),
     ),
     GoRoute(
       path: '/my-reports',

@@ -198,6 +198,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function to upvote an issue
+DROP FUNCTION IF EXISTS upvote_issue(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION upvote_issue(p_user_id UUID, p_issue_id UUID)
 RETURNS INTEGER AS $$
 DECLARE
@@ -210,7 +212,7 @@ BEGIN
 
     -- Update the upvotes count in civic_issues
     UPDATE civic_issues
-    SET upvotes = (SELECT COUNT(*) FROM issue_upvotes WHERE issue_id = p_issue_id)
+    SET upvotes = (SELECT COUNT(*) FROM issue_upvotes WHERE issue_upvotes.issue_id = p_issue_id)
     WHERE id = p_issue_id
     RETURNING upvotes INTO current_upvotes;
 

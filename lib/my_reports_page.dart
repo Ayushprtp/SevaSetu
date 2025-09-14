@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:jansahayak/main.dart'; // Import main.dart to access themeNotifier
+import 'package:sevasetu/main.dart'; // Import main.dart to access themeNotifier
 
 class MyReportsPage extends StatefulWidget {
   const MyReportsPage({super.key});
@@ -109,7 +109,8 @@ class _MyReportsPageState extends State<MyReportsPage> {
             status,
             priority_score,
             created_at,
-            upvotes
+            upvotes,
+            media_files
           ''')
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
@@ -201,6 +202,8 @@ class _MyReportsPageState extends State<MyReportsPage> {
     final priorityLabel = _getPriorityLabel(priorityScore);
     final distance = _calculateDistance(issue);
     final formattedDistance = _formatDistance(distance);
+    final mediaFiles = issue['media_files'] as List<dynamic>?;
+    final mediaCount = mediaFiles?.length ?? 0;
 
     return GestureDetector(
       onTap: () {
@@ -264,12 +267,26 @@ class _MyReportsPageState extends State<MyReportsPage> {
                       fontSize: 14,
                     ),
                   ),
-                  Text(
-                    'Status: ${issue['status'] ?? 'Reported'}',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 14,
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.image, size: 16, color: Colors.grey),
+                      SizedBox(width: 4),
+                      Text(
+                        '$mediaCount media',
+                        style: TextStyle(
+                          fontFamily: 'SFProRounded Regular',
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Text(
+                        'Status: ${issue['status'] ?? 'Reported'}',
+                        style: TextStyle(
+                          fontFamily: 'SFProRounded Regular',
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

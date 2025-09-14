@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
-import 'package:jansahayak/main.dart'; // Import main.dart to access themeNotifier
+import 'package:sevasetu/main.dart'; // Import main.dart to access themeNotifier
 import 'package:flutter/cupertino.dart'; // Import for CupertinoSlidingSegmentedControl
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart'; // Import for awesome_snackbar_content
 
@@ -294,7 +294,7 @@ class _AuthPageState extends State<AuthPage> {
                 children: <Widget>[
                   const SizedBox(height: 40.0), // Space from top
                   const Text(
-                    'JanSahayak',
+                    'SevaSetu',
                     style: TextStyle(
                       fontSize: 56,
                       fontWeight: FontWeight.bold,
@@ -303,51 +303,54 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
                   const SizedBox(height: 40.0),
-                  CupertinoSlidingSegmentedControl<AuthMode>(
-                    groupValue: _selectedAuthMode.first,
-                    backgroundColor: Theme.of(context).cardColor.withAlpha(5),
-                    thumbColor: Theme.of(context).primaryColor,
-                    padding: const EdgeInsets.all(8),
-                    children: <AuthMode, Widget>{
-                      AuthMode.login: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        child: Text(
-                          'Login',
-                          style: TextStyle(
-                            color: _isLogin ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
-                            fontSize: 18,
-                            fontFamily: 'SFProRounded Medium',
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 200), // Ensure minimum width
+                    child: CupertinoSlidingSegmentedControl<AuthMode>(
+                      groupValue: _selectedAuthMode.first,
+                      backgroundColor: Theme.of(context).cardColor.withAlpha(5),
+                      thumbColor: Theme.of(context).primaryColor,
+                      padding: const EdgeInsets.all(8),
+                      children: <AuthMode, Widget>{
+                        AuthMode.login: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          child: Text(
+                            'Login',
+                            style: TextStyle(
+                              color: _isLogin ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                              fontSize: 18,
+                              fontFamily: 'SFProRounded Medium',
+                            ),
                           ),
                         ),
-                      ),
-                      AuthMode.signup: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        child: Text(
-                          'Sign Up',
-                          style: TextStyle(
-                            color: !_isLogin ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
-                            fontSize: 18,
-                            fontFamily: 'SFProRounded Medium',
+                        AuthMode.signup: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          child: Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              color: !_isLogin ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
+                              fontSize: 18,
+                              fontFamily: 'SFProRounded Medium',
+                            ),
                           ),
                         ),
-                      ),
-                    },
-                    onValueChanged: (AuthMode? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedAuthMode = {newValue};
-                          _emailController.clear();
-                          _passwordController.clear();
-                          _firstNameController.clear();
-                          _lastNameController.clear();
-                          _usernameController.clear();
-                          _mobileNumberController.clear();
-                          _idValueController.clear();
-                          _selectedIdType = null;
-                          _obscureText = true;
-                        });
-                      }
-                    },
+                      },
+                      onValueChanged: (AuthMode? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _selectedAuthMode = {newValue};
+                            _emailController.clear();
+                            _passwordController.clear();
+                            _firstNameController.clear();
+                            _lastNameController.clear();
+                            _usernameController.clear();
+                            _mobileNumberController.clear();
+                            _idValueController.clear();
+                            _selectedIdType = null;
+                            _obscureText = true;
+                          });
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 30.0),
                   if (!_isLogin) ...[

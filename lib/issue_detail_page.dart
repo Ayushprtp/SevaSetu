@@ -99,6 +99,19 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
     }
   }
 
+  void _openFullScreenImage(BuildContext context, List<dynamic> mediaFiles, int initialIndex) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return FullScreenImageViewer(
+          mediaFiles: mediaFiles,
+          initialIndex: initialIndex,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -264,7 +277,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Evidence',
+          'Evidence (${mediaFiles.length} media files)',
           style: TextStyle(
             fontFamily: 'SFProRounded Medium',
             fontSize: 20,
@@ -277,20 +290,25 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
             scrollDirection: Axis.horizontal,
             itemCount: mediaFiles.length,
             itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    mediaFiles[index] as String,
-                    fit: BoxFit.cover,
-                    width: 150,
-                    height: 200,
-                    errorBuilder: (context, error, stackTrace) => Container(
+              return GestureDetector(
+                onTap: () {
+                  _openFullScreenImage(context, mediaFiles, index);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      mediaFiles[index] as String,
+                      fit: BoxFit.cover,
                       width: 150,
                       height: 200,
-                      color: Colors.grey[300],
-                      child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 150,
+                        height: 200,
+                        color: Colors.grey[300],
+                        child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                      ),
                     ),
                   ),
                 ),
@@ -667,8 +685,8 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       }
 
       await supabase.rpc('upvote_issue', params: {
-        'user_id': user.id,
-        'issue_id': issueId,
+        'p_user_id': user.id,
+        'p_issue_id': issueId,
       });
 
       // Refresh issue details to show updated upvote count
@@ -686,5 +704,103 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
         );
       }
     }
+  }
+}
+
+class FullScreenImageViewer extends StatefulWidget {
+  final List<dynamic> mediaFiles;
+  final int initialIndex;
+
+  const FullScreenImageViewer({
+    super.key,
+    required this.mediaFiles,
+    required this.initialIndex,
+  });
+
+  @override
+  State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
+  late PageController _pageController;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Header with close button and image counter
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${_currentIndex + 1} of ${widget.mediaFiles.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+          // Full-screen image viewer
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.mediaFiles.length,
+              itemBuilder: (context, index) {
+                return Center(
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      widget.mediaFiles[index] as String,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.black,
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: Colors.white,
+                          size: 50,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
-import 'package:jansahayak/profile_page.dart';
+import 'package:sevasetu/profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:jansahayak/main.dart'; // Import main.dart to access themeNotifier
+import 'package:sevasetu/main.dart'; // Import main.dart to access themeNotifier
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -34,7 +34,11 @@ class _HomePageState extends State<HomePage> {
           _currentIndex = 1;
         });
       }),
-      const ReportProblemPage(),
+      ReportProblemPage(onReportSubmitted: () {
+        setState(() {
+          _currentIndex = 0; // Navigate to Feed page (index 0)
+        });
+      }),
       const SettingsPage()
     ];
   }
@@ -42,35 +46,35 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _getPageTitle(_currentIndex),
-          style: const TextStyle(fontFamily: 'SFProRounded Medium'),
-        ),
-        centerTitle: true, // Center the title
-        actions: [
-          IconButton(
-            icon: Icon(Theme.of(context).brightness == Brightness.dark
-                ? Icons.light_mode
-                : Icons.dark_mode),
-            onPressed: () {
-              themeNotifier.value =
-                  Theme.of(context).brightness == Brightness.dark
-                      ? ThemeMode.light
-                      : ThemeMode.dark;
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await Supabase.instance.client.auth.signOut();
-              if (context.mounted) {
-                context.go('/auth');
-              }
-            },
-          ),
-        ],
-      ),
+      // appBar: AppBar(
+      //   title: Text(
+      //     _getPageTitle(_currentIndex),
+      //     style: const TextStyle(fontFamily: 'SFProRounded Medium'),
+      //   ),
+      //   centerTitle: true, // Center the title
+      //   actions: [
+      //     IconButton(
+      //       icon: Icon(Theme.of(context).brightness == Brightness.dark
+      //           ? Icons.light_mode
+      //           : Icons.dark_mode),
+      //       onPressed: () {
+      //         themeNotifier.value =
+      //             Theme.of(context).brightness == Brightness.dark
+      //                 ? ThemeMode.light
+      //                 : ThemeMode.dark;
+      //       },
+      //     ),
+      //     IconButton(
+      //       icon: const Icon(Icons.logout),
+      //       onPressed: () async {
+      //         await Supabase.instance.client.auth.signOut();
+      //         if (context.mounted) {
+      //           context.go('/auth');
+      //         }
+      //       },
+      //     ),
+      //   ],
+      // ),
       body: _pages[_currentIndex],
       bottomNavigationBar: CurvedNavigationBar(
         index: _currentIndex,
@@ -82,7 +86,7 @@ class _HomePageState extends State<HomePage> {
         ],
         color: Theme.of(context).colorScheme.primary,
         buttonBackgroundColor: Theme.of(context).colorScheme.primary,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: CupertinoColors.transparent,
         animationCurve: Curves.easeInOut,
         animationDuration: const Duration(milliseconds: 300),
         onTap: (index) {
@@ -103,7 +107,7 @@ class _HomePageState extends State<HomePage> {
       case 2:
         return 'Profile';
       default:
-        return 'JanSahayak'; // Default title
+        return 'SevaSetu'; // Default title
     }
   }
 }
@@ -202,7 +206,7 @@ class _FeedPageState extends State<FeedPage> {
       
       final response = await supabase
           .from('users')
-          .select('first_name, last_name, username')
+          .select('first_name, last_name, username, id_value')
           .eq('id', user.id)
           .single();
       
@@ -360,8 +364,13 @@ class _FeedPageState extends State<FeedPage> {
         }).toList();
       }
       
-      // Apply sorting based on selected view
+      // Apply sorting and filtering based on selected view
       if (_showPrioritized) {
+        // Filter for issues with more than 1 upvote for "Prioritized" view
+        filteredIssues = filteredIssues.where((issue) {
+          final upvotes = issue['upvotes'] as int? ?? 0;
+          return upvotes > 1;
+        }).toList();
         // Sort by upvotes for "Prioritized" view (descending)
         filteredIssues.sort((a, b) {
           final upvotesA = a['upvotes'] as int? ?? 0;
@@ -437,8 +446,8 @@ class _FeedPageState extends State<FeedPage> {
       
       // Call the database function to upvote the issue
       final response = await supabase.rpc('upvote_issue', params: {
-        'user_id': user.id,
-        'issue_id': issueId,
+        'p_user_id': user.id,
+        'p_issue_id': issueId,
       });
       
       // Refresh the issues list
@@ -465,41 +474,29 @@ class _FeedPageState extends State<FeedPage> {
     return CustomScrollView(
       slivers: [
         CupertinoSliverNavigationBar(
-          largeTitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${_getGreeting()}, ${_getUserFullName()}',
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Medium',
-                  fontSize: 22,
-                  color: Theme.of(context).textTheme.titleLarge?.color,
-                ),
-              ),
-              if (_getUserUsername().isNotEmpty)
-                Text(
-                  _getUserUsername(),
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Regular',
-                    fontSize: 15,
-                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                  ),
-                ),
-            ],
-          ),
-          trailing: CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () {
-              themeNotifier.value =
-                  Theme.of(context).brightness == Brightness.dark
-                      ? ThemeMode.light
-                      : ThemeMode.dark;
-            },
-            child: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? CupertinoIcons.sun_max_fill
-                  : CupertinoIcons.moon_fill,
+          alwaysShowMiddle: true,
+
+          largeTitle: const Text(
+            'Feed',
+            style: TextStyle(
+              fontFamily: 'SFProRounded Medium',
+              fontSize: 35,
             ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _showFilterOptions(context),
+                child: Icon(CupertinoIcons.line_horizontal_3_decrease),
+              ),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _showSortOptions(context),
+                child: Icon(CupertinoIcons.sort_down),
+              ),
+            ],
           ),
         ),
         SliverPadding(
@@ -507,19 +504,71 @@ class _FeedPageState extends State<FeedPage> {
           sliver: SliverList(
             delegate: SliverChildListDelegate(
               [
-                // User greeting section (now part of SliverAppBar)
+                // User greeting section
+                Card(
+                  margin: EdgeInsets.zero, // Remove default card margin
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                          _getGreeting(),
+                          style: const TextStyle(
+                            fontFamily: 'SFProRounded Medium',
+                            fontSize: 18,
+                          ),
+                        ),
+                        SizedBox(width: 8,),
+                            Text( 
+                              _getUserFullName(),
+                              style: const TextStyle(
+                                fontFamily: 'SFProRounded Medium',
+                                fontSize: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Spacer(),
+                            if (_userData != null && (_userData!['id_value'] as String? ?? '').isNotEmpty)
+                              const Icon(
+                                Icons.verified,
+                                color: Colors.green,
+                                size: 20,
+                              )
+                            else
+                              const Icon(
+                                Icons.cancel,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                          ],
+                        ),
+                        if (_getUserUsername().isNotEmpty)
+                          Text(
+                            _getUserUsername(),
+                            style: TextStyle(
+                              fontFamily: 'SFProRounded Regular',
+                              color: Theme.of(context).textTheme.bodyMedium?.color,
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _buildStatItem('Points', '60'),
+                            const SizedBox(width: 16),
+                            _buildStatItem('Badges', '1'),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 24),
                 // Segmented control for Recents and Prioritized
                 CupertinoSegmentedControl<bool>(
-                  children: const {
-                    false: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      child: Text('Recents'),
-                    ),
-                    true: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      child: Text('Prioritized'),
-                    ),
-                  },
                   groupValue: _showPrioritized,
                   onValueChanged: (bool value) {
                     setState(() {
@@ -530,6 +579,30 @@ class _FeedPageState extends State<FeedPage> {
                       }
                     });
                   },
+                  children: {
+                    false: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Text(
+                        'Recents',
+                        style: TextStyle(
+                          color: _showPrioritized ? CupertinoColors.activeBlue : CupertinoColors.white,
+                        ),
+                      ),
+                    ),
+                    true: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Text(
+                        'Prioritized',
+                        style: TextStyle(
+                          color: _showPrioritized ? CupertinoColors.white : CupertinoColors.activeBlue,
+                        ),
+                      ),
+                    ),
+                  },
+                  selectedColor: CupertinoColors.activeBlue,
+                  unselectedColor: Theme.of(context).cardColor,
+                  borderColor: CupertinoColors.activeBlue,
+                  pressedColor: CupertinoColors.activeBlue.withOpacity(0.2),
                 ),
                 SizedBox(height: 24),
                 // Priority issues section (or Recents)
@@ -558,7 +631,7 @@ class _FeedPageState extends State<FeedPage> {
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search by Issue ID (first 8 digits)',
+                    hintText: 'Search by Issue ID',
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -573,25 +646,7 @@ class _FeedPageState extends State<FeedPage> {
                     }
                   },
                 ),
-                SizedBox(height: 16),
-                // Filter and sort controls
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => _showFilterOptions(context),
-                      icon: Icon(Icons.filter_list),
-                      label: Text('Filter'),
-                    ),
-                    SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => _showSortOptions(context),
-                      icon: Icon(Icons.sort),
-                      label: Text('Sort'),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 if (_isLoading)
                   Center(
                     child: CircularProgressIndicator(
@@ -1039,7 +1094,8 @@ class _FeedPageState extends State<FeedPage> {
 }
 
 class ReportProblemPage extends StatefulWidget {
-  const ReportProblemPage({super.key});
+  final VoidCallback? onReportSubmitted;
+  const ReportProblemPage({super.key, this.onReportSubmitted});
 
   @override
   State<ReportProblemPage> createState() => _ReportProblemPageState();
@@ -1051,8 +1107,10 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
   String _selectedCategory = '';
   String _description = '';
   String _location = ''; // This will be updated with the actual address
-  bool _isVerifiedUser = true; // This should come from user profile in real implementation
+  bool _isVerifiedUser = false; // This will be determined by user's id_value
   bool _isSubmitting = false; // New state variable for submission
+  bool _isLoadingUserData = true; // New state variable for loading user data
+  Map<String, dynamic>? _userData; // New state variable to hold user data
   
   // Speech to Text
   final SpeechToText _speechToText = SpeechToText();
@@ -1079,14 +1137,54 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     'Other'
   ];
 
-  @override
-  @override
-  void initState() {
-    super.initState();
-    _getCurrentLocation(); // Automatically capture location on page load
-    _initSpeech();
-  }
-
+  
+    @override
+    @override
+    void initState() {
+      super.initState();
+      _loadUserData(); // Load user data to check verification status
+      _getCurrentLocation(); // Automatically capture location on page load
+      _initSpeech();
+    }
+  
+    /// Fetch user data to determine verification status
+    Future<void> _loadUserData() async {
+      try {
+        final supabase = Supabase.instance.client;
+        final user = supabase.auth.currentUser;
+        
+        if (user == null) {
+          setState(() {
+            _isLoadingUserData = false;
+          });
+          return;
+        }
+        
+        final response = await supabase
+            .from('users')
+            .select('id_value')
+            .eq('id', user.id)
+            .single();
+        
+        setState(() {
+          _userData = response as Map<String, dynamic>?;
+          // User is verified if id_value is not null and not empty
+          _isVerifiedUser = (response['id_value'] as String?)?.isNotEmpty ?? false;
+          _isLoadingUserData = false;
+        });
+      } catch (e) {
+        // If we can't fetch user data, assume not verified
+        setState(() {
+          _isLoadingUserData = false;
+          _isVerifiedUser = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error checking verification status: $e')),
+          );
+        }
+      }
+    }
   /// This initializes the speech to text plugin.
   void _initSpeech() async {
     _speechEnabled = await _speechToText.initialize();
@@ -1348,6 +1446,10 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
       
       // Extract the issue ID from the response
       final issueId = response as String?;
+
+      // Store current state before clearing for the dialog
+      final bool locationCaptured = _currentPosition != null;
+      final int mediaCount = _capturedMedia.length;
       
       setState(() {
         _capturedMedia.clear();
@@ -1361,7 +1463,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Report submitted successfully')),
         );
-        _showSubmissionSuccess(issueId);
+        _showSubmissionSuccess(issueId, locationCaptured, mediaCount);
       }
     } catch (e) {
       if (mounted) {
@@ -1389,7 +1491,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     return uploadedUrls;
   }
   
-  void _showSubmissionSuccess(String? issueId) {
+  void _showSubmissionSuccess(String? issueId, bool locationCaptured, int mediaCount) {
     showDialog(
       context: context,
       barrierDismissible: false, // User must tap a button to close
@@ -1437,15 +1539,15 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
                 _buildStatusRow(
                   context,
                   Icons.location_on,
-                  _currentPosition != null ? 'Location Captured' : 'Location Not Captured',
-                  _currentPosition != null ? Colors.green : Colors.red,
+                  locationCaptured ? 'Location Captured' : 'Location Not Captured',
+                  locationCaptured ? Colors.green : Colors.red,
                 ),
                 SizedBox(height: 12),
                 _buildStatusRow(
                   context,
                   Icons.image,
-                  'Media: ${_capturedMedia.length} item(s)',
-                  _capturedMedia.isNotEmpty ? Colors.green : Colors.orange,
+                  'Media: $mediaCount item(s)',
+                  mediaCount > 0 ? Colors.green : Colors.orange,
                 ),
                 SizedBox(height: 12),
                 _buildStatusRow(
@@ -1493,6 +1595,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
                 OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).pop(); // Close dialog
+                    widget.onReportSubmitted?.call(); // Call the callback to navigate to Feed page
                   },
                   style: OutlinedButton.styleFrom(
                     minimumSize: Size(double.infinity, 50),
@@ -1553,237 +1656,251 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
       return _buildVerificationRequiredScreen();
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '📸 Capture Evidence',
+    return CustomScrollView(
+      slivers: [
+        CupertinoSliverNavigationBar(
+          largeTitle: const Text(
+            'Report Problem',
             style: TextStyle(
               fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
+              fontSize: 30,
             ),
           ),
-          SizedBox(height: 24),
-          // Display captured media
-          if (_capturedMedia.isNotEmpty)
-            Container(
-              height: 150,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _capturedMedia.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            File(_capturedMedia[index]),
-                            fit: BoxFit.cover,
-                            width: 100,
-                            height: 150,
-                          ),
-                        ),
-                        Positioned(
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _capturedMedia.removeAt(index);
-                              });
-                            },
-                            child: Container(
-                              padding: EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(10),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.all(24.0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(
+              [
+                Text(
+                  '📸 Capture Evidence',
+                  style: TextStyle(
+                    fontFamily: 'SFProRounded Medium',
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 24),
+                // Display captured media
+                if (_capturedMedia.isNotEmpty)
+                  Container(
+                    height: 150,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _capturedMedia.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(_capturedMedia[index]),
+                                  fit: BoxFit.cover,
+                                  width: 100,
+                                  height: 150,
+                                ),
                               ),
-                              child: Icon(Icons.close, color: Colors.white, size: 16),
-                            ),
+                              Positioned(
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _capturedMedia.removeAt(index);
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(Icons.close, color: Colors.white, size: 16),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _captureImage,
-                  child: Text('📷 Camera'),
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _pickImagesFromGallery,
-                  child: Text('📁 Gallery'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 24),
-          Text(
-            '📍 Issue Location',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_isLoadingLocation)
-                    Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  else if (_currentPosition != null)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Current Location:',
-                          style: TextStyle(
-                            fontFamily: 'SFProRounded Medium',
-                            fontSize: 16,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}',
-                          style: TextStyle(fontFamily: 'SFProRounded Regular'),
-                        ),
-                        Text(
-                          'Lng: ${_currentPosition!.longitude.toStringAsFixed(6)}',
-                          style: TextStyle(fontFamily: 'SFProRounded Regular'),
-                        ),
-                        Text(
-                          'Accuracy: ±${_currentPosition!.accuracy.toStringAsFixed(1)}m',
-                          style: TextStyle(fontFamily: 'SFProRounded Regular'),
-                        ),
-                      ],
-                    )
-                  else
-                    Text(
-                      'Location not available. Please enable GPS.',
-                      style: TextStyle(fontFamily: 'SFProRounded Regular'),
-                    ),
-                  SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _isLoadingLocation ? null : _getCurrentLocation,
-                      child: Text('Refresh Location'),
+                        );
+                      },
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-          Text(
-            'Category',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _selectedCategory.isNotEmpty ? _selectedCategory : null,
-            decoration: InputDecoration(
-              labelText: 'Select Category',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            items: _categories.map((String category) {
-              return DropdownMenuItem<String>(
-                value: category,
-                child: Text(category),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedCategory = newValue ?? '';
-              });
-            },
-          ),
-          SizedBox(height: 24),
-          Text(
-            '📝 Description',
-            style: TextStyle(
-              fontFamily: 'SFProRounded Medium',
-              fontSize: 20,
-            ),
-          ),
-          SizedBox(height: 16),
-          TextField(
-            controller: TextEditingController(text: _description),
-            onChanged: (value) {
-              _description = value;
-            },
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText: 'Describe the problem in detail...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _isListening ? Icons.mic_off : Icons.mic,
-                  color: _isListening ? Colors.red : Theme.of(context).iconTheme.color,
-                ),
-                onPressed: _speechEnabled
-                    ? () {
-                        _isListening ? _stopListening() : _startListening();
-                      }
-                    : null,
-              ),
-            ),
-          ),
-          SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitReport, // Disable button when submitting
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isSubmitting
-                  ? SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        strokeWidth: 3,
-                      ),
-                    )
-                  : Text(
-                      '📤 Submit Report',
-                      style: TextStyle(
-                        fontFamily: 'SFProRounded Medium',
-                        fontSize: 18,
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _captureImage,
+                        child: Text('📷 Camera'),
                       ),
                     ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _pickImagesFromGallery,
+                        child: Text('📁 Gallery'),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 24),
+                Text(
+                  '📍 Issue Location',
+                  style: TextStyle(
+                    fontFamily: 'SFProRounded Medium',
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_isLoadingLocation)
+                          Center(
+                            child: CircularProgressIndicator(),
+                          )
+                        else if (_currentPosition != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Current Location:',
+                                style: TextStyle(
+                                  fontFamily: 'SFProRounded Medium',
+                                  fontSize: 16,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}',
+                                style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                              ),
+                              Text(
+                                'Lng: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                                style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                              ),
+                              Text(
+                                'Accuracy: ±${_currentPosition!.accuracy.toStringAsFixed(1)}m',
+                                style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                              ),
+                            ],
+                          )
+                        else
+                          Text(
+                            'Location not available. Please enable GPS.',
+                            style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                          ),
+                        SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _isLoadingLocation ? null : _getCurrentLocation,
+                            child: Text('Refresh Location'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'Category',
+                  style: TextStyle(
+                    fontFamily: 'SFProRounded Medium',
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedCategory.isNotEmpty ? _selectedCategory : null,
+                  decoration: InputDecoration(
+                    labelText: 'Select Category',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  items: _categories.map((String category) {
+                    return DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(category),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedCategory = newValue ?? '';
+                    });
+                  },
+                ),
+                SizedBox(height: 24),
+                Text(
+                  '📝 Description',
+                  style: TextStyle(
+                    fontFamily: 'SFProRounded Medium',
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: TextEditingController(text: _description),
+                  onChanged: (value) {
+                    _description = value;
+                  },
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Describe the problem in detail...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isListening ? Icons.mic_off : Icons.mic,
+                        color: _isListening ? Colors.red : Theme.of(context).iconTheme.color,
+                      ),
+                      onPressed: _speechEnabled
+                          ? () {
+                              _isListening ? _stopListening() : _startListening();
+                            }
+                          : null,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitReport, // Disable button when submitting
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.all(16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isSubmitting
+                        ? SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              strokeWidth: 3,
+                            ),
+                          )
+                        : Text(
+                            '📤 Submit Report',
+                            style: TextStyle(
+                              fontFamily: 'SFProRounded Medium',
+                              fontSize: 18,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1801,7 +1918,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
             ),
             SizedBox(height: 24),
             Text(
-              'Verification Required',
+              'You Can\'t Raise New Issue You Are Not Verified',
               style: TextStyle(
                 fontFamily: 'SFProRounded Medium',
                 fontSize: 24,
@@ -1809,7 +1926,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
             ),
             SizedBox(height: 16),
             Text(
-              'To report civic issues, please complete identity verification',
+              'You Can\'t Raise New Issue , First Gets Verified',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'SFProRounded Regular',

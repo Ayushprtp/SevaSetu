@@ -29,7 +29,7 @@ class _MyAppState extends State<MyApp> {
       builder: (_, mode, __) {
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
-          title: 'JanSahayak',
+          title: 'SevaSetu',
           theme: ThemeData(
             fontFamily: 'SFProRounded Regular', // Default font for light mode
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),

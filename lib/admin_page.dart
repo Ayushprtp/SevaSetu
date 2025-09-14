@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:jansahayak/main.dart'; // Import main.dart to access themeNotifier
+import 'package:sevasetu/main.dart'; // Import main.dart to access themeNotifier
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
