@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'auth_page.dart';
-import 'home_page.dart';
-import 'admin_page.dart';
-import 'issue_detail_page.dart';
-import 'profile_page.dart';
-import 'my_reports_page.dart';
-import 'edit_profile_page.dart';
+import 'auth/auth_page.dart';
+import 'main_screen.dart';
+import 'admin/admin_page.dart';
+import 'issues/issue_detail_page.dart';
+import 'profile/profile_page.dart';
+import 'profile/my_reports_page.dart';
+import 'profile/edit_profile_page.dart';
 
 final GoRouter appRouter = GoRouter(
   routes: [
@@ -17,7 +17,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/home',
-      builder: (context, state) => const HomePage(),
+      builder: (context, state) => const MainScreen(),
     ),
     GoRoute(
       path: '/admin',
@@ -47,31 +47,19 @@ final GoRouter appRouter = GoRouter(
     final session = supabase.auth.currentSession;
     final isAuthenticated = session != null;
 
+    // If the user is not authenticated, redirect to the auth page
     if (!isAuthenticated) {
       return '/auth';
     }
 
-    // If authenticated, check user role and redirect
+    // If the user is authenticated and trying to access the auth page, redirect to home
     if (state.fullPath == '/auth' && isAuthenticated) {
-      final user = supabase.auth.currentUser;
-      if (user != null) {
-        try {
-          final response = await supabase
-              .from('users')
-              .select('id')
-              .eq('id', user.id)
-              .single();
-
-          // Since there's no role column in the users table, we'll navigate to home for all users
-          // and to admin only if the user has admin privileges (which would be checked separately)
-          return '/home';
-        } catch (e) {
-          debugPrint('Error fetching role during redirect: $e');
-          return '/auth'; // Fallback to auth on error
-        }
-      }
+      // No need to fetch role here, as we're just redirecting authenticated users from auth page
+      return '/home';
     }
+
+    // For all other cases, allow navigation to the requested path
     return null;
   },
-  initialLocation: '/auth',
+  initialLocation: '/auth', // Keep initialLocation as /auth for unauthenticated users
 );

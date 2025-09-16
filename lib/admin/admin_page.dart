@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sevasetu/main.dart'; // Import main.dart to access themeNotifier
+import 'package:sevasetu/utils/app_styles.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -12,7 +13,7 @@ class AdminPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Admin Page',
-          style: TextStyle(fontFamily: 'SFProRounded Medium'),
+          style: AppTextStyles.titleLarge,
         ),
         actions: [
           IconButton(
@@ -37,10 +38,10 @@ class AdminPage extends StatelessWidget {
           ),
         ],
       ),
-      body: const Center(
+      body: Center(
         child: Text(
           'Welcome, Admin!',
-          style: TextStyle(fontFamily: 'SFProRounded Regular'),
+          style: AppTextStyles.bodyLarge,
         ),
       ),
     );

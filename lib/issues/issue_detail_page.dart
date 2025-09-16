@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:sevasetu/utils/app_styles.dart';
+import 'package:url_launcher/url_launcher.dart'; // Added for map, call, message
+import 'package:audioplayers/audioplayers.dart'; // Added for voice note playback
 
 class IssueDetailPage extends StatefulWidget {
   final String issueId;
@@ -17,11 +20,22 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
   Map<String, dynamic>? _reporterDetails;
   bool _isLoading = true;
   String? _errorMessage;
+  final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize AudioPlayer
+  String? _currentUserId; // To store the current user's ID
+  bool _hasUpvoted = false; // To track if the current user has upvoted
+  String? _issueReporterId; // To store the ID of the user who reported the issue
 
   @override
   void initState() {
     super.initState();
+    _currentUserId = Supabase.instance.client.auth.currentUser?.id; // Get current user ID
     _fetchIssueDetails();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose(); // Dispose AudioPlayer
+    super.dispose();
   }
 
   Future<void> _fetchIssueDetails() async {
@@ -40,6 +54,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
           .from('civic_issues')
           .select('''
             *,
+            user_id,
             users:user_id(username, first_name, last_name)
           ''')
           .eq('id', widget.issueId)
@@ -81,9 +96,27 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       }
 
       print('Final reporterData: $reporterData');
+      
+      // Determine if the current user has upvoted this issue by querying the issue_upvotes table
+      bool hasUpvoted = false;
+      if (_currentUserId != null) {
+        final upvoteResponse = await supabase
+            .from('issue_upvotes')
+            .select('issue_id')
+            .eq('user_id', _currentUserId!)
+            .eq('issue_id', widget.issueId)
+            .limit(1);
+        hasUpvoted = upvoteResponse.isNotEmpty;
+      }
+
+      // Get the reporter's user ID
+      final String? reporterId = response['user_id'] as String?;
+
       setState(() {
         _issueDetails = response;
         _reporterDetails = reporterData;
+        _hasUpvoted = hasUpvoted;
+        _issueReporterId = reporterId;
         _isLoading = false;
       });
     } catch (e) {
@@ -122,9 +155,9 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
             context.pop(); // Use go_router's pop for back navigation
           },
         ),
-        title: const Text(
+        title: Text(
           'Issue Details',
-          style: TextStyle(fontFamily: 'SFProRounded Medium'),
+          style: AppTextStyles.titleMedium,
         ),
       ),
       body: _isLoading
@@ -206,9 +239,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
           children: [
             Text(
               category,
-              style: TextStyle(
-                fontFamily: 'SFProRounded Medium',
-                fontSize: 22,
+              style: AppTextStyles.titleLarge.copyWith(
                 color: Theme.of(context).primaryColor,
               ),
             ),
@@ -220,9 +251,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                 Expanded(
                   child: Text(
                     address,
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 16,
+                    style: AppTextStyles.bodyLarge.copyWith(
                       color: Theme.of(context).hintColor,
                     ),
                   ),
@@ -237,9 +266,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                   const SizedBox(width: 8),
                   Text(
                     'Reported by: $reporterName',
-                    style: TextStyle(
-                      fontFamily: 'SFProRounded Regular',
-                      fontSize: 14,
+                    style: AppTextStyles.bodySmall.copyWith(
                       color: Theme.of(context).hintColor,
                     ),
                   ),
@@ -252,9 +279,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                 const SizedBox(width: 8),
                 Text(
                   'On: ${DateFormat('MMM dd, yyyy HH:mm').format(createdAt)}',
-                  style: TextStyle(
-                    fontFamily: 'SFProRounded Regular',
-                    fontSize: 14,
+                  style: AppTextStyles.bodySmall.copyWith(
                     color: Theme.of(context).hintColor,
                   ),
                 ),
@@ -278,10 +303,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       children: [
         Text(
           'Evidence (${mediaFiles.length} media files)',
-          style: TextStyle(
-            fontFamily: 'SFProRounded Medium',
-            fontSize: 20,
-          ),
+          style: AppTextStyles.titleMedium,
         ),
         const SizedBox(height: 16),
         Container(
@@ -333,10 +355,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       children: [
         Text(
           'Description',
-          style: TextStyle(
-            fontFamily: 'SFProRounded Medium',
-            fontSize: 20,
-          ),
+          style: AppTextStyles.titleMedium,
         ),
         const SizedBox(height: 16),
         if (description != null && description.isNotEmpty)
@@ -347,10 +366,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
               padding: const EdgeInsets.all(16.0),
               child: Text(
                 description,
-                style: TextStyle(
-                  fontFamily: 'SFProRounded Regular',
-                  fontSize: 16,
-                ),
+                style: AppTextStyles.bodyLarge,
               ),
             ),
           ),
@@ -363,14 +379,26 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
               leading: Icon(Icons.audiotrack, color: Theme.of(context).primaryColor),
               title: const Text(
                 'Voice Note Available',
-                style: TextStyle(fontFamily: 'SFProRounded Regular'),
+                style: AppTextStyles.bodyLarge,
               ),
               trailing: Icon(Icons.play_arrow),
-              onTap: () {
-                // TODO: Implement voice note playback
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Voice note playback not implemented')),
-                );
+              onTap: () async {
+                if (voiceNoteUrl != null && voiceNoteUrl.isNotEmpty) {
+                  try {
+                    await _audioPlayer.play(UrlSource(voiceNoteUrl));
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Playing voice note')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error playing voice note: $e')),
+                      );
+                    }
+                  }
+                }
               },
             ),
           ),
@@ -404,10 +432,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       children: [
         Text(
           'Location Details',
-          style: TextStyle(
-            fontFamily: 'SFProRounded Medium',
-            fontSize: 20,
-          ),
+          style: AppTextStyles.titleMedium,
         ),
         const SizedBox(height: 16),
         Card(
@@ -420,29 +445,37 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
               children: [
                 Text(
                   'Address: $address',
-                  style: TextStyle(fontFamily: 'SFProRounded Regular', fontSize: 16),
+                  style: AppTextStyles.bodyLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Latitude: ${latitude.toStringAsFixed(6)}',
-                  style: TextStyle(fontFamily: 'SFProRounded Regular', fontSize: 16),
+                  style: AppTextStyles.bodyLarge,
                 ),
                 Text(
                   'Longitude: ${longitude.toStringAsFixed(6)}',
-                  style: TextStyle(fontFamily: 'SFProRounded Regular', fontSize: 16),
+                  style: AppTextStyles.bodyLarge,
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Open in map application
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Open in map not implemented')),
-                      );
+                    onPressed: () async {
+                      final lat = latitude.toString();
+                      final lng = longitude.toString();
+                      final mapUrl = Uri.parse('geo:$lat,$lng?q=$lat,$lng'); // Generic geo URI
+                      if (await canLaunchUrl(mapUrl)) {
+                        await launchUrl(mapUrl);
+                      } else {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Could not open map application')),
+                          );
+                        }
+                      }
                     },
                     icon: Icon(Icons.map),
-                    label: const Text('View on Map'),
+                    label: const Text('View on Map', style: AppTextStyles.button),
                   ),
                 ),
               ],
@@ -490,10 +523,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       children: [
         Text(
           'Status & Assignment',
-          style: TextStyle(
-            fontFamily: 'SFProRounded Medium',
-            fontSize: 20,
-          ),
+          style: AppTextStyles.titleMedium,
         ),
         const SizedBox(height: 16),
         Card(
@@ -506,7 +536,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
               children: [
                 Text(
                   'Current Status: $statusText',
-                  style: TextStyle(fontFamily: 'SFProRounded Medium', fontSize: 18, color: progressColor),
+                  style: AppTextStyles.titleSmall.copyWith(color: progressColor),
                 ),
                 const SizedBox(height: 16),
                 LinearProgressIndicator(
@@ -519,12 +549,12 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                 const SizedBox(height: 16),
                 Text(
                   'Assigned Department: $assignedDepartment',
-                  style: TextStyle(fontFamily: 'SFProRounded Regular', fontSize: 16),
+                  style: AppTextStyles.bodyLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Expected Resolution: $expectedFixTime',
-                  style: TextStyle(fontFamily: 'SFProRounded Regular', fontSize: 16),
+                  style: AppTextStyles.bodyLarge,
                 ),
               ],
             ),
@@ -551,10 +581,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       children: [
         Text(
           'Field Worker Details',
-          style: TextStyle(
-            fontFamily: 'SFProRounded Medium',
-            fontSize: 20,
-          ),
+          style: AppTextStyles.titleMedium,
         ),
         const SizedBox(height: 16),
         Card(
@@ -580,25 +607,34 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                     children: [
                       Text(
                         fieldWorkerName,
-                        style: TextStyle(fontFamily: 'SFProRounded Medium', fontSize: 18),
+                        style: AppTextStyles.titleSmall,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Contact: $fieldWorkerNumber',
-                        style: TextStyle(fontFamily: 'SFProRounded Regular', fontSize: 16),
+                        style: AppTextStyles.bodyLarge,
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           ElevatedButton.icon(
-                            onPressed: () {
-                              // TODO: Implement call functionality
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Call functionality not implemented')),
+                            onPressed: () async {
+                              final Uri launchUri = Uri(
+                                scheme: 'tel',
+                                path: fieldWorkerNumber.replaceAll(' ', ''), // Remove spaces for URI
                               );
+                              if (await canLaunchUrl(launchUri)) {
+                                await launchUrl(launchUri);
+                              } else {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not launch call')),
+                                  );
+                                }
+                              }
                             },
                             icon: Icon(Icons.call),
-                            label: const Text('Call'),
+                            label: const Text('Call', style: AppTextStyles.button),
                             style: ElevatedButton.styleFrom(
                               minimumSize: Size.zero,
                               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -606,14 +642,23 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
-                            onPressed: () {
-                              // TODO: Implement message functionality
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Message functionality not implemented')),
+                            onPressed: () async {
+                              final Uri launchUri = Uri(
+                                scheme: 'sms',
+                                path: fieldWorkerNumber.replaceAll(' ', ''), // Remove spaces for URI
                               );
+                              if (await canLaunchUrl(launchUri)) {
+                                await launchUrl(launchUri);
+                              } else {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not launch message')),
+                                  );
+                                }
+                              }
                             },
                             icon: Icon(Icons.message),
-                            label: const Text('Message'),
+                            label: const Text('Message', style: AppTextStyles.button),
                             style: OutlinedButton.styleFrom(
                               minimumSize: Size.zero,
                               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -641,10 +686,7 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
       children: [
         Text(
           'Community Support',
-          style: TextStyle(
-            fontFamily: 'SFProRounded Medium',
-            fontSize: 20,
-          ),
+          style: AppTextStyles.titleMedium,
         ),
         const SizedBox(height: 16),
         Card(
@@ -657,15 +699,26 @@ class _IssueDetailPageState extends State<IssueDetailPage> {
               children: [
                 Text(
                   '$upvotes Upvotes',
-                  style: TextStyle(fontFamily: 'SFProRounded Medium', fontSize: 18),
+                  style: AppTextStyles.titleSmall,
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => _upvoteIssue(issueId),
-                  icon: Icon(Icons.arrow_upward),
-                  label: const Text('Upvote'),
+                  onPressed: (_currentUserId == null || _currentUserId == _issueReporterId || _hasUpvoted)
+                      ? null
+                      : () => _upvoteIssue(issueId),
+                  icon: _hasUpvoted
+                      ? const Icon(Icons.check)
+                      : (_currentUserId == _issueReporterId ? const Icon(Icons.person) : const Icon(Icons.arrow_upward)),
+                  label: Text(
+                    _hasUpvoted
+                        ? 'Upvoted'
+                        : (_currentUserId == _issueReporterId ? 'Your Issue' : 'Upvote'),
+                    style: AppTextStyles.button,
+                  ),
                   style: ElevatedButton.styleFrom(
                     minimumSize: Size.zero,
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    backgroundColor: _hasUpvoted ? Colors.green : Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
                   ),
                 ),
               ],
@@ -756,9 +809,8 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
               children: [
                 Text(
                   '${_currentIndex + 1} of ${widget.mediaFiles.length}',
-                  style: const TextStyle(
+                  style: AppTextStyles.bodyLarge.copyWith(
                     color: Colors.white,
-                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

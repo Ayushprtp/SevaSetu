@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_router.dart'; // Import the router
+import 'main_screen.dart'; // Import the main screen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +29,7 @@ class _MyAppState extends State<MyApp> {
       valueListenable: themeNotifier,
       builder: (_, mode, __) {
         return MaterialApp.router(
-          debugShowCheckedModeBanner: false,
+          debugShowCheckedModeBanner: true,
           title: 'SevaSetu',
           theme: ThemeData(
             fontFamily: 'SFProRounded Regular', // Default font for light mode
@@ -43,6 +44,12 @@ class _MyAppState extends State<MyApp> {
                 ),
                 elevation: MaterialStateProperty.all<double>(8.0),
               ),
+            ),
+            appBarTheme: AppBarTheme(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              iconTheme: const IconThemeData(color: Colors.white),
+              actionsIconTheme: const IconThemeData(color: Colors.white),
             ),
           ),
           darkTheme: ThemeData(
@@ -64,6 +71,12 @@ class _MyAppState extends State<MyApp> {
                 ),
                 elevation: MaterialStateProperty.all<double>(8.0),
               ),
+            ),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              iconTheme: IconThemeData(color: Colors.white),
+              actionsIconTheme: IconThemeData(color: Colors.white),
             ),
           ),
           themeMode: mode,

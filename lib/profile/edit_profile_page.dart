@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sevasetu/utils/app_styles.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -77,7 +78,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: const Text('Edit Profile', style: AppTextStyles.titleMedium),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => context.pop(false),
@@ -101,6 +102,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   controller: _firstNameController,
                   decoration: const InputDecoration(
                     labelText: 'First Name',
+                    labelStyle: AppTextStyles.bodyLarge,
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) {
@@ -115,6 +117,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   controller: _lastNameController,
                   decoration: const InputDecoration(
                     labelText: 'Last Name',
+                    labelStyle: AppTextStyles.bodyLarge,
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -123,6 +126,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   controller: _usernameController,
                   decoration: const InputDecoration(
                     labelText: 'Username',
+                    labelStyle: AppTextStyles.bodyLarge,
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) {
@@ -137,6 +141,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   controller: _mobileNumberController,
                   decoration: const InputDecoration(
                     labelText: 'Mobile Number',
+                    labelStyle: AppTextStyles.bodyLarge,
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
@@ -154,7 +159,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : const Text('Save'),
+                        : const Text('Save', style: AppTextStyles.button),
                   ),
                 ),
               ],
