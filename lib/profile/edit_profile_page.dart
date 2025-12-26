@@ -5,7 +5,7 @@ import 'package:sevasetu/utils/app_styles.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic>? userData;
-  
+
   const EditProfilePage({super.key, this.userData});
 
   @override
@@ -29,19 +29,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _mobileNumberController.text = widget.userData?['mobile_number'] ?? '';
   }
 
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _usernameController.dispose();
+    _mobileNumberController.dispose();
+    super.dispose();
+  }
+
   Future<void> _updateProfile() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    setState(() {
-      _isLoading = true;
-    });
-    
+
+    setState(() => _isLoading = true);
+
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
-      
+
       if (user == null) return;
-      
+
       await supabase
           .from('users')
           .update({
@@ -52,114 +59,289 @@ class _EditProfilePageState extends State<EditProfilePage> {
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', user.id);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully')),
         );
-        
-        // Go back to profile page with success result
         context.pop(true);
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      
+      setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
       }
     }
   }
 
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: AppTextStyles.bodyLarge,
+        validator: validator,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: AppColors.primary),
+          filled: true,
+          fillColor: Theme.of(context).cardColor,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide(color: AppColors.neutral200, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide(color: AppColors.primary, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderSide: BorderSide(color: AppColors.error, width: 1),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.md,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile', style: AppTextStyles.titleMedium),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.close_rounded,
+              color: isDark ? Colors.white : AppColors.neutral700,
+            ),
+          ),
           onPressed: () => context.pop(false),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _isLoading ? null : _updateProfile,
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.md),
+            child: TextButton(
+              onPressed: _isLoading ? null : _updateProfile,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      'Save',
+                      style: AppTextStyles.button.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
+            ),
           ),
         ],
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextFormField(
-                  controller: _firstNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'First Name',
-                    labelStyle: AppTextStyles.bodyLarge,
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your first name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Name',
-                    labelStyle: AppTextStyles.bodyLarge,
-                    border: OutlineInputBorder(),
+                // Header
+                Text('Edit Profile', style: AppTextStyles.headlineMedium),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Update your personal information',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.neutral500,
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
+
+                const SizedBox(height: AppSpacing.xl),
+
+                // Avatar section
+                Center(
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDark],
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Theme.of(context).cardColor,
+                          child: Text(
+                            _firstNameController.text.isNotEmpty
+                                ? _firstNameController.text[0].toUpperCase()
+                                : 'U',
+                            style: AppTextStyles.headlineLarge.copyWith(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              width: 3,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: AppSpacing.xl),
+
+                // Form fields
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _firstNameController,
+                        label: 'First Name',
+                        icon: Icons.person_rounded,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _lastNameController,
+                        label: 'Last Name',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+
+                _buildTextField(
                   controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    labelStyle: AppTextStyles.bodyLarge,
-                    border: OutlineInputBorder(),
-                  ),
+                  label: 'Username',
+                  icon: Icons.alternate_email_rounded,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter a username';
+                      return 'Required';
                     }
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
+
+                _buildTextField(
                   controller: _mobileNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Mobile Number',
-                    labelStyle: AppTextStyles.bodyLarge,
-                    border: OutlineInputBorder(),
-                  ),
+                  label: 'Mobile Number',
+                  icon: Icons.phone_rounded,
                   keyboardType: TextInputType.phone,
                 ),
-                const SizedBox(height: 24),
-                Center(
+
+                const SizedBox(height: AppSpacing.xl),
+
+                // Save button
+                Container(
+                  width: double.infinity,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    gradient: LinearGradient(
+                      colors: [AppColors.primary, AppColors.primaryDark],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.4),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _updateProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                    ),
                     child: _isLoading
                         ? const SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 24,
+                            height: 24,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
-                        : const Text('Save', style: AppTextStyles.button),
+                        : Text(
+                            'Save Changes',
+                            style: AppTextStyles.button.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ],
