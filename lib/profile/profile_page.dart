@@ -329,11 +329,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           Icons.thumb_up_rounded,
                           'Upvoted Issues',
                           'Issues you supported',
-                          () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Coming soon!')),
-                            );
-                          },
+                          () => context.push('/upvoted-issues'),
                         ),
                       ]),
 

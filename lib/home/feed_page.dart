@@ -948,7 +948,7 @@ class _FeedPageState extends State<FeedPage> {
     final upvotes = issue['upvotes'] as int? ?? 0;
     final priorityScore = issue['priority_score'] as int? ?? 0;
     final priorityLabel = _getPriorityLabel(priorityScore);
-    final distanceKm = issue['distance_km'] as double? ?? 0.0;
+    final distanceKm = (issue['distance_km'] as num?)?.toDouble() ?? 0.0;
     final reporterFirstName =
         issue['reporter_first_name'] as String? ?? 'Anonymous';
     final reporterLastName = issue['reporter_last_name'] as String? ?? '';

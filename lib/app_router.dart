@@ -10,6 +10,7 @@ import 'issues/issue_detail_page.dart';
 import 'profile/profile_page.dart';
 import 'profile/my_reports_page.dart';
 import 'profile/edit_profile_page.dart';
+import 'profile/upvoted_issues_page.dart';
 import 'notifications/notifications_page.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -47,6 +48,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/my-reports',
       builder: (context, state) => const MyReportsPage(),
+    ),
+    GoRoute(
+      path: '/upvoted-issues',
+      builder: (context, state) => const UpvotedIssuesPage(),
     ),
   ],
   redirect: (context, state) async {

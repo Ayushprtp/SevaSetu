@@ -387,11 +387,7 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: CupertinoIcons.arrow_up_circle,
             title: 'Upvoted Issues',
             subtitle: 'Issues you\'ve supported',
-            onTap: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Coming soon!')));
-            },
+            onTap: () => context.push('/upvoted-issues'),
           ),
         ],
       ),
